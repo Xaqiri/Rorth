@@ -5,12 +5,15 @@ use std::process::Command;
 
 use rorth::lexer::lexer::{new, TokenType};
 
-fn main() {
-    let program = "1 2 + 3 * 6 - 5 + 12 + 4 / 6 = .".to_string();
-    println!("main.rs: {:?}", program);
+fn main() -> Result<(), String> {
+    let source_file = "main.rs";
+    let program = "1 2 + 3 * 6 - 5 + 12 + 4 / , 6 , = . ".to_string();
+    println!("{}: {:?}", source_file, program);
 
     let mut l = new(program);
-    l.lex();
+    if let Err(e) = l.lex() {
+        return Err(e);
+    }
     let mut stack: Vec<f32> = vec![];
     //     let mut string_stack: Vec<String> = vec![];
     //     let mut string_heap = HashSet::new();
@@ -69,29 +72,37 @@ fn main() {
             }
             TokenType::PERIOD => {
                 let a = stack.pop().ok_or(0);
-                match a {
-                    Ok(n) => {
-                        let s: String;
-                        if n == n.round() {
-                            s = format!(
-                                "\tcall $printf(l $fmt_int, ..., d %n{})\n",
-                                stack.len() + 1
-                            );
-                        } else {
-                            s = format!(
-                                "\tcall $printf(l $fmt_dec, ..., d %n{})\n",
-                                stack.len() + 1
-                            );
-                        }
-                        file.write(s.as_bytes()).unwrap();
+                if let Ok(n) = a {
+                    let s: String;
+                    if n == n.round() {
+                        s = format!("\tcall $printf(l $fmt_int, ..., d %n{})\n", stack.len() + 1);
+                    } else {
+                        s = format!("\tcall $printf(l $fmt_dec, ..., d %n{})\n", stack.len() + 1);
                     }
-                    Err(_) => {
-                        panic!("main.rs: Invalid '.': Nothing on the stack to print")
-                    }
+                    file.write(s.as_bytes()).unwrap();
+                } else {
+                    return Err(format!(
+                        "{}:{}:{}: Invalid '.': Nothing on the stack to print",
+                        source_file, tok.col, tok.row
+                    ));
                 }
             }
             TokenType::COMMA => {
-                todo!()
+                let a = stack.last().ok_or(0);
+                if let Ok(&n) = a {
+                    let s: String;
+                    if n == n.round() {
+                        s = format!("\tcall $printf(l $fmt_int, ..., d %n{})\n", stack.len());
+                    } else {
+                        s = format!("\tcall $printf(l $fmt_dec, ..., d %n{})\n", stack.len());
+                    }
+                    file.write(s.as_bytes()).unwrap();
+                } else {
+                    return Err(format!(
+                        "{}:{}:{}: Invalid ',': Nothing on the stack to print",
+                        source_file, tok.col, tok.row
+                    ));
+                }
             }
             TokenType::INT(i) => {
                 stack.push(i as f32);
@@ -117,20 +128,6 @@ fn main() {
 
             TokenType::EOF => {}
         }
-        //                 ',' => {
-        //                     let a = string_stack.pop().ok_or("");
-
-        //                     match a {
-        //                         Ok(n) => {
-        //                             let s: String;
-        //                             s = format!("\tcall $printf(l $fmt_str, ..., l $str_{})\n", n);
-        //                             file.write(s.as_bytes()).unwrap();
-        //                         }
-        //                         Err(_) => {
-        //                             panic!("main.rs: Invalid ',': Nothing on the stack to print");
-        //                         }
-        //                     }
-        //                 }
     }
 
     file.write(b"\tret 0\n}\n").unwrap();
@@ -148,9 +145,10 @@ fn main() {
 
     let cmd = Command::new("sh")
         .arg("-c")
-        .arg("cd ../out/ && qbe -o out.s rorth.ssa && gcc -o rorth out.s && ./rorth")
+        .arg("qbe -o ../out/out.s ../out/rorth.ssa && gcc -o ../out/rorth ../out/out.s && ../out/rorth")
         .output()
         .expect("failed to execute command");
     let t = cmd.stdout;
     io::stdout().write_all(&t).unwrap();
+    Ok(())
 }

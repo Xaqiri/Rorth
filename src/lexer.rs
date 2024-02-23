@@ -15,8 +15,8 @@ pub mod lexer {
 
     #[derive(Debug, Clone, Copy)]
     pub struct Token {
-        col: usize,
-        row: usize,
+        pub col: usize,
+        pub row: usize,
         pub tok_type: TokenType,
     }
 
@@ -62,11 +62,8 @@ pub mod lexer {
         }
 
         pub fn skip_space(&mut self) {
-            if self.program[self.pos] == '\n' {
-                self.row += 1;
-                self.advance_token();
-                self.col = 0;
-                self.skip_space();
+            if self.char == '\0' {
+                return;
             }
             if self.program[self.pos].is_whitespace() {
                 self.advance_token();
@@ -96,7 +93,7 @@ pub mod lexer {
             }
         }
 
-        pub fn lex(&mut self) {
+        pub fn lex(&mut self) -> Result<(), String> {
             while self.char != '\0' {
                 self.skip_space();
                 match self.char {
@@ -105,20 +102,25 @@ pub mod lexer {
                     '*' => self.tokens.push(self.make_token(TokenType::ASTERISK)),
                     '/' => self.tokens.push(self.make_token(TokenType::SLASH)),
                     '.' => self.tokens.push(self.make_token(TokenType::PERIOD)),
+                    ',' => self.tokens.push(self.make_token(TokenType::COMMA)),
                     '=' => self.tokens.push(self.make_token(TokenType::EQUAL)),
+                    '\0' => self.tokens.push(self.make_token(TokenType::EOF)),
                     _ => {
                         let n = self.char.to_digit(10);
                         match n {
                             Some(_) => self.get_number(self.char),
-                            None => println!(
-                                "main.rs: {}, {}: Error lexing character: {}",
-                                self.col, self.row, self.char
-                            ),
+                            None => {
+                                return Err(format!(
+                                    "main.rs: {}, {}: Error lexing character: {}",
+                                    self.col, self.row, self.char
+                                ))
+                            }
                         }
                     }
                 }
                 self.advance_token();
             }
+            Ok(())
         }
     }
 }
