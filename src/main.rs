@@ -12,13 +12,7 @@ enum CurStack {
 
 fn main() -> Result<(), String> {
     let source_file = "main.rs";
-    let program = "
-1 2 = ?
-  1 2 = ?
-    1 1 + .
-  : wow .
-: no ."
-        .to_string();
+    let program = "1 2 swap dup + . .".to_string();
     println!("{}: {:?}", source_file, program);
 
     let mut l = new(program);
@@ -120,7 +114,7 @@ fn main() -> Result<(), String> {
                     }
                 }
             },
-            TokenType::COMMA => {
+            TokenType::COMMA | TokenType::PEEK => {
                 let a = stack.last().ok_or(0);
                 if let Ok(&n) = a {
                     let s: String;
@@ -136,35 +130,6 @@ fn main() -> Result<(), String> {
                         source_file, tok.col, tok.row
                     ));
                 }
-            }
-            TokenType::INT(i) => {
-                stack.push(i as f32);
-                top_type = CurStack::Num;
-                let s = format!("\t%n{} =d add 0, d_{}\n", stack.len(), i);
-                file.write(s.as_bytes()).unwrap();
-            }
-            TokenType::EQUAL => {
-                let a = stack.pop().ok_or("No value on the stack");
-                let b = stack.pop().ok_or("No value on the stack");
-                match a == b {
-                    true => stack.push(1.0),
-                    false => stack.push(0.0),
-                }
-                let s = format!(
-                    "\t%b{} =w ceqd %n{}, %n{}\n\t%n{} =d swtof %b{}\n",
-                    stack.len(),
-                    stack.len(),
-                    stack.len() + 1,
-                    stack.len(),
-                    stack.len()
-                );
-
-                file.write(s.as_bytes()).unwrap();
-            }
-            TokenType::IDENT(s) => {
-                string_stack.push(s);
-                string_heap.insert(string_stack.last().unwrap().to_string());
-                top_type = CurStack::String;
             }
             TokenType::QMARK => {
                 if_stack.push(1);
@@ -183,17 +148,59 @@ fn main() -> Result<(), String> {
                 file.write(s.as_bytes()).unwrap();
                 if_stack.pop();
             }
+            TokenType::EQUAL => {
+                let a = stack.pop().ok_or("No value on the stack");
+                let b = stack.pop().ok_or("No value on the stack");
+                match a == b {
+                    true => stack.push(1.0),
+                    false => stack.push(0.0),
+                }
+                let s = format!(
+                    "\t%b{} =w ceqd %n{}, %n{}\n\t%n{} =d swtof %b{}\n",
+                    stack.len(),
+                    stack.len(),
+                    stack.len() + 1,
+                    stack.len(),
+                    stack.len()
+                );
+                file.write(s.as_bytes()).unwrap();
+            }
+            TokenType::INT(i) => {
+                stack.push(i as f32);
+                top_type = CurStack::Num;
+                let s = format!("\t%n{} =d add 0, d_{}\n", stack.len(), i);
+                file.write(s.as_bytes()).unwrap();
+            }
+            TokenType::STR(s) => {
+                string_stack.push(s);
+                string_heap.insert(string_stack.last().unwrap().to_string());
+                top_type = CurStack::String;
+            }
+            TokenType::SWAP => {
+                let a = stack.pop().unwrap();
+                let b = stack.pop().unwrap();
+                stack.push(a);
+                stack.push(b);
+                let s = format!("\t%n{} =d add 0, d_{}\n", stack.len() - 1, a);
+                file.write(s.as_bytes()).unwrap();
+                let s = format!("\t%n{} =d add 0, d_{}\n", stack.len(), b);
+                file.write(s.as_bytes()).unwrap();
+            }
+            TokenType::DUP => {
+                let a = *stack.last().unwrap();
+                stack.push(a);
+                let s = format!("\t%n{} =d add 0, d_{}\n", stack.len(), a);
+                file.write(s.as_bytes()).unwrap();
+            }
             TokenType::EOF => {}
         }
     }
 
     file.write(b"@end\n\tret 0\n}\n").unwrap();
-    file.write(b"data $fmt_int = { b \"%.f\\n\", b 0 }\n")
+    file.write(b"data $fmt_int = { b \"%.f \", b 0 }\n")
         .unwrap();
-    file.write(b"data $fmt_dec = { b \"%f\\n\", b 0 }\n")
-        .unwrap();
-    file.write(b"data $fmt_str = { b \"%s\\n\", b 0 }\n")
-        .unwrap();
+    file.write(b"data $fmt_dec = { b \"%f \", b 0 }\n").unwrap();
+    file.write(b"data $fmt_str = { b \"%s \", b 0 }\n").unwrap();
 
     for i in string_heap {
         let s = format!("data $str_{} = {{ b \"{}\", b 0 }}\n", i, i);

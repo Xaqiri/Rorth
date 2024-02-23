@@ -1,10 +1,11 @@
 pub mod lexer {
+    use std::collections::HashMap;
 
     #[derive(Debug)]
     pub enum TokenType {
         EOF,
         INT(u32),
-        IDENT(String),
+        STR(String),
         PLUS,
         MINUS,
         ASTERISK,
@@ -14,6 +15,9 @@ pub mod lexer {
         EQUAL,
         QMARK,
         COLON,
+        SWAP,
+        PEEK,
+        DUP,
     }
 
     #[derive(Debug)]
@@ -29,8 +33,9 @@ pub mod lexer {
         row: usize,
         peek: usize,
         char: char,
-        pub tokens: Vec<Token>,
         program: Vec<char>,
+        ident: HashMap<String, TokenType>,
+        pub tokens: Vec<Token>,
     }
 
     pub fn new(code: String) -> Lexer {
@@ -39,17 +44,21 @@ pub mod lexer {
             col: 0,
             row: 0,
             peek: 1,
-            program: code.chars().collect(),
             char: ' ',
+            program: code.chars().collect(),
+            ident: HashMap::new(),
             tokens: vec![],
         };
         l.char = l.program[l.pos];
+        l.ident.insert("swap".to_string(), TokenType::SWAP);
+        l.ident.insert("peek".to_string(), TokenType::PEEK);
+        l.ident.insert("dup".to_string(), TokenType::DUP);
         l
     }
 
     impl Lexer {
-        pub fn print(self) {
-            for i in self.tokens {
+        pub fn print(&self) {
+            for i in &self.tokens {
                 println!("{:?}", i);
             }
         }
@@ -89,8 +98,17 @@ pub mod lexer {
                 ident.push(self.program[self.peek]);
                 self.advance_token();
             }
-            let s: String = ident.iter().collect();
-            self.tokens.push(self.make_token(TokenType::IDENT(s)));
+            let s = ident.iter().collect();
+            if let Some(t) = self.ident.get(&s) {
+                match t {
+                    TokenType::SWAP => self.tokens.push(self.make_token(TokenType::SWAP)),
+                    TokenType::PEEK => self.tokens.push(self.make_token(TokenType::PEEK)),
+                    TokenType::DUP => self.tokens.push(self.make_token(TokenType::DUP)),
+                    _ => println!("Unhandled token: {:?}", t),
+                }
+            } else {
+                self.tokens.push(self.make_token(TokenType::STR(s)));
+            }
         }
 
         pub fn get_number(&mut self) {
@@ -132,16 +150,6 @@ pub mod lexer {
                                 self.col, self.row, self.char
                             ));
                         }
-                        // let n = self.char.to_digit(10);
-                        // match n {
-                        //     Some(_) => self.get_number(),
-                        //     None => {
-                        //         return Err(format!(
-                        // "main.rs: {}, {}: Error lexing character: {}",
-                        // self.col, self.row, self.char
-                        // ))
-                        // }
-                        // }
                     }
                 }
                 self.advance_token();
