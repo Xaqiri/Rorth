@@ -6,7 +6,7 @@ use std::process::Command;
 use rorth::lexer::lexer::{new, TokenType};
 
 fn main() {
-    let program = "8 12 + 5 / 4 = .".to_string();
+    let program = "1 2 + 3 * 6 - 5 + 12 + 4 / 6 = .".to_string();
     println!("main.rs: {:?}", program);
 
     let mut l = new(program);
