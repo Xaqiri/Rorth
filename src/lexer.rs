@@ -1,9 +1,10 @@
 pub mod lexer {
 
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug)]
     pub enum TokenType {
         EOF,
         INT(u32),
+        IDENT(String),
         PLUS,
         MINUS,
         ASTERISK,
@@ -11,9 +12,11 @@ pub mod lexer {
         PERIOD,
         COMMA,
         EQUAL,
+        QMARK,
+        COLON,
     }
 
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug)]
     pub struct Token {
         pub col: usize,
         pub row: usize,
@@ -46,7 +49,7 @@ pub mod lexer {
 
     impl Lexer {
         pub fn print(self) {
-            for i in self.tokens.clone() {
+            for i in self.tokens {
                 println!("{:?}", i);
             }
         }
@@ -79,10 +82,21 @@ pub mod lexer {
             }
         }
 
-        pub fn get_number(&mut self, i: char) {
+        pub fn get_ident(&mut self) {
+            let mut ident = vec![];
+            ident.push(self.char);
+            while self.peek < self.program.len() && self.program[self.peek].is_alphabetic() {
+                ident.push(self.program[self.peek]);
+                self.advance_token();
+            }
+            let s: String = ident.iter().collect();
+            self.tokens.push(self.make_token(TokenType::IDENT(s)));
+        }
+
+        pub fn get_number(&mut self) {
             let mut num = vec![];
-            num.push(i);
-            while self.program[self.peek].is_digit(10) {
+            num.push(self.char);
+            while self.peek < self.program.len() && self.program[self.peek].is_digit(10) {
                 num.push(self.program[self.peek]);
                 self.advance_token();
             }
@@ -104,18 +118,30 @@ pub mod lexer {
                     '.' => self.tokens.push(self.make_token(TokenType::PERIOD)),
                     ',' => self.tokens.push(self.make_token(TokenType::COMMA)),
                     '=' => self.tokens.push(self.make_token(TokenType::EQUAL)),
+                    '?' => self.tokens.push(self.make_token(TokenType::QMARK)),
+                    ':' => self.tokens.push(self.make_token(TokenType::COLON)),
                     '\0' => self.tokens.push(self.make_token(TokenType::EOF)),
                     _ => {
-                        let n = self.char.to_digit(10);
-                        match n {
-                            Some(_) => self.get_number(self.char),
-                            None => {
-                                return Err(format!(
-                                    "main.rs: {}, {}: Error lexing character: {}",
-                                    self.col, self.row, self.char
-                                ))
-                            }
+                        if self.char.is_digit(10) {
+                            self.get_number();
+                        } else if self.char.is_alphabetic() {
+                            self.get_ident();
+                        } else {
+                            return Err(format!(
+                                "main.rs:{}:{}: Error lexing character: {}",
+                                self.col, self.row, self.char
+                            ));
                         }
+                        // let n = self.char.to_digit(10);
+                        // match n {
+                        //     Some(_) => self.get_number(),
+                        //     None => {
+                        //         return Err(format!(
+                        // "main.rs: {}, {}: Error lexing character: {}",
+                        // self.col, self.row, self.char
+                        // ))
+                        // }
+                        // }
                     }
                 }
                 self.advance_token();
