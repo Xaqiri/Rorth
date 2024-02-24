@@ -2,118 +2,83 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::process::Command;
 
-use rorth::lexer::lexer::{new, TokenType};
-use rorth::stack::stack::{self, *};
+use rorth::lexer::lexer::{new, Token, TokenType};
 
-fn _sim() -> Result<Stack, String> {
-    let source_file = "main.rs";
-    let program = "1 1 = ? yes . : no .".to_string();
-    println!("{}: {:?}", source_file, program);
-
-    let mut l = new(program);
-    if let Err(e) = l.lex() {
-        return Err(e);
-    }
-    let mut stack = stack::new();
-    for tok in l.tokens {
-        match tok.tok_type {
-            TokenType::PLUS => {
-                let a = stack.pop();
-                let b = stack.pop();
-                stack.push(b.unwrap_or(0.0) + a.unwrap_or(0.0));
-            }
-            TokenType::MINUS => {
-                let a = stack.pop();
-                let b = stack.pop();
-                stack.push(b.unwrap_or(0.0) - a.unwrap_or(0.0));
-            }
-            TokenType::ASTERISK => {
-                let a = stack.pop();
-                let b = stack.pop();
-                stack.push(b.unwrap_or(0.0) * a.unwrap_or(0.0));
-            }
-            TokenType::SLASH => {
-                let a = stack.pop();
-                let b = stack.pop();
-                stack.push(b.unwrap_or(0.0) / a.unwrap_or(0.0));
-            }
-            TokenType::PERIOD => match stack.top_type {
-                CurStack::Num => {
-                    let a = stack.pop().ok_or(0);
-                    if let Ok(i) = a {
-                        print!("{} ", i);
-                    } else {
-                        return Err(format!(
-                            "{}:{}:{}: Invalid '.': Nothing on the stack to print",
-                            source_file, tok.col, tok.row
-                        ));
-                    }
-                }
-                CurStack::String => {
-                    let a = stack.pop_str().ok_or(0);
-                    if let Ok(i) = a {
-                        print!("{} ", i);
-                    } else {
-                        return Err(format!(
-                            "{}:{}:{}: Invalid '.': Nothing on the stack to print",
-                            source_file, tok.col, tok.row
-                        ));
-                    }
-                }
-            },
-            TokenType::COMMA | TokenType::PEEK => {
-                let a = stack.last().ok_or(0);
-                if let Err(_) = a {
-                    return Err(format!(
-                        "{}:{}:{}: Invalid ',': Nothing on the stack to print",
-                        source_file, tok.col, tok.row
-                    ));
-                }
-            }
-            TokenType::QMARK => {
-                stack.push_if();
-            }
-            TokenType::COLON => {
-                stack.if_stack.pop();
-            }
-            TokenType::EQUAL => {
-                let a = stack.pop().ok_or("No value on the stack");
-                let b = stack.pop().ok_or("No value on the stack");
-                match a == b {
-                    true => stack.push(1.0),
-                    false => stack.push(0.0),
-                }
-            }
-            TokenType::INT(i) => {
-                stack.push(i as f32);
-                stack.top_type = CurStack::Num;
-            }
-            TokenType::STR(s) => {
-                stack.push_str(s);
-                stack
-                    .string_heap
-                    .insert(stack.string_stack.last().unwrap().to_string());
-                stack.top_type = CurStack::String;
-            }
-            TokenType::SWAP => {
-                let a = stack.pop().unwrap();
-                let b = stack.pop().unwrap();
-                stack.push(a);
-                stack.push(b);
-            }
-            TokenType::DUP => {
-                let a = *stack.last().unwrap();
-                stack.push(a);
-            }
-            TokenType::EOF => {}
-        }
-    }
-    Ok(stack)
+fn write_op(file: &mut File, stack: i32, op: &str) -> i32 {
+    let s = format!("\t%n{} =d {} %n{}, %n{}\n", stack - 1, op, stack, stack - 1);
+    file.write(s.as_bytes()).unwrap();
+    stack - 1
 }
 
-fn comp() -> Result<(), String> {
-    let source_file = "main.rs";
-    let program = "1 1 = ? 4 swap dup + . : 2 .".to_string();
+fn print_op(file: &mut File, stack: i32, source: &String, tok: Token) -> Result<i32, String> {
+    match stack {
+        0 => Err(format!(
+            "{}:{}:{}: Invalid '.': Nothing on the stack to print",
+            source, tok.col, tok.row
+        )),
+        _ => {
+            let s = format!("\tcall $printf(l $fmt_dec, ..., d %n{})\n", stack);
+            file.write(s.as_bytes()).unwrap();
+            Ok(stack)
+        }
+    }
+}
+
+fn dup_op(file: &mut File, stack: i32, source: &String, tok: Token) -> Result<i32, String> {
+    match stack {
+        0 => Err(format!(
+            "{}:{}:{}: Invalid 'dup': Nothing on the stack to print",
+            source, tok.col, tok.row
+        )),
+        _ => {
+            let s = format!("\t%n{} =d add 0, %n{}\n", stack + 1, stack);
+            file.write(s.as_bytes()).unwrap();
+            Ok(stack + 1)
+        }
+    }
+}
+
+fn swap_op(file: &mut File, stack: i32) {
+    let a = stack;
+    let b = stack - 1;
+    let s = format!("\t%t =d add 0, %n{}\n", a);
+    file.write(s.as_bytes()).unwrap();
+    let s = format!("\t%n{} =d add 0, %n{}\n", a, b);
+    file.write(s.as_bytes()).unwrap();
+    let s = format!("\t%n{} =d add 0, %t\n", b);
+    file.write(s.as_bytes()).unwrap();
+}
+
+fn push_op(file: &mut File, stack: i32, value: u32) -> i32 {
+    let stack = stack + 1;
+    let s = format!("\t%n{} =d add 0, d_{}\n", stack, value);
+    file.write(s.as_bytes()).unwrap();
+    stack
+}
+
+fn comp_op(file: &mut File, stack: i32, op: &str) {
+    let op = match op {
+        "=" => "eq",
+        "!=" => "ne",
+        "<=" => "le",
+        "<" => "lt",
+        ">=" => "ge",
+        ">" => "gt",
+        _ => todo!(),
+    };
+    let s = format!(
+        "\t%b =w c{}d %n{}, %n{}\n\t%n{} =d swtof %b\n",
+        op,
+        stack,
+        stack - 1,
+        stack,
+    );
+    file.write(s.as_bytes()).unwrap();
+}
+
+fn main() -> Result<(), String> {
+    let source_file = "main.rs".to_string();
+    let program = "1 1 = ? dup + . : 0 .".to_string();
     println!("{}: {:?}", source_file, program);
 
     let mut l = new(program);
@@ -128,92 +93,32 @@ fn comp() -> Result<(), String> {
 
     for tok in l.tokens {
         match tok.tok_type {
-            TokenType::PLUS => {
-                let s = format!("\t%n{} =d add %n{}, %n{}\n", stack - 1, stack, stack - 1);
-                file.write(s.as_bytes()).unwrap();
-                stack -= 1;
-            }
-            TokenType::MINUS => {
-                let s = format!("\t%n{} =d sub %n{}, %n{}\n", stack - 1, stack, stack - 1);
-                file.write(s.as_bytes()).unwrap();
-                stack -= 1;
-            }
-            TokenType::ASTERISK => {
-                let s = format!("\t%n{} =d mul %n{}, %n{}\n", stack - 1, stack, stack - 1);
-                file.write(s.as_bytes()).unwrap();
-                stack -= 1;
-            }
-            TokenType::SLASH => {
-                let s = format!("\t%n{} =d div %n{}, %n{}\n", stack - 1, stack, stack - 1);
-                file.write(s.as_bytes()).unwrap();
-                stack -= 1;
-            }
-            TokenType::PERIOD => {
-                let a = match stack {
-                    0 => Err(1),
-                    _ => Ok(stack),
-                };
-                if let Ok(n) = a {
-                    let s = format!("\tcall $printf(l $fmt_dec, ..., d %n{})\n", n);
-                    file.write(s.as_bytes()).unwrap();
-                } else {
-                    return Err(format!(
-                        "{}:{}:{}: Invalid '.': Nothing on the stack to print",
-                        source_file, tok.col, tok.row
-                    ));
-                }
-                stack -= 1;
-            }
+            TokenType::PLUS => stack = write_op(&mut file, stack, "add"),
+            TokenType::MINUS => stack = write_op(&mut file, stack, "sub"),
+            TokenType::ASTERISK => stack = write_op(&mut file, stack, "mul"),
+            TokenType::SLASH => stack = write_op(&mut file, stack, "div"),
+            TokenType::EQUAL => comp_op(&mut file, stack, "="),
+            TokenType::NEQUAL => comp_op(&mut file, stack, "!="),
+            TokenType::LTE => comp_op(&mut file, stack, "<="),
+            TokenType::LT => comp_op(&mut file, stack, "<"),
+            TokenType::GTE => comp_op(&mut file, stack, ">="),
+            TokenType::GT => comp_op(&mut file, stack, ">"),
+            TokenType::INT(i) => stack = push_op(&mut file, stack, i),
+            TokenType::STR(_) => stack += 1,
+            TokenType::SWAP => swap_op(&mut file, stack),
+            TokenType::DUP => match dup_op(&mut file, stack, &source_file, tok) {
+                Ok(s) => stack = s,
+                Err(e) => return Err(e),
+            },
 
-            // TokenType::PERIOD => match stack.top_type {
-            //     CurStack::Num => {
-            //         let a = match stack {
-            //             0 => Err(1),
-            //             _ => Ok(stack),
-            //         };
-            //         if let Ok(n) = a {
-            //             // let s: String;
-            //             // if n == n.round() {
-            //             //     s = format!("\tcall $printf(l $fmt_int, ..., d %n{})\n", stack);
-            //             // } else {
-            //             let s = format!("\tcall $printf(l $fmt_dec, ..., d %n{})\n", n);
-            //             // }
-            //             file.write(s.as_bytes()).unwrap();
-            //         } else {
-            //             return Err(format!(
-            //                 "{}:{}:{}: Invalid '.': Nothing on the stack to print",
-            //                 source_file, tok.col, tok.row
-            //             ));
-            //         }
-            //     }
-            //     CurStack::String => {
-            //         let a = stack.pop_str().ok_or(0);
-            //         if let Ok(n) = a {
-            //             let s = format!("\tcall $printf(l $fmt_str, ..., l $str_{})\n", n);
-            //             file.write(s.as_bytes()).unwrap();
-            //         } else {
-            //             return Err(format!(
-            //                 "{}:{}:{}: Invalid '.': Nothing on the stack to print",
-            //                 source_file, tok.col, tok.row
-            //             ));
-            //         }
-            //     }
-            // },
-            TokenType::COMMA | TokenType::PEEK => {
-                let a = match stack {
-                    0 => Err(1),
-                    _ => Ok(stack),
-                };
-                if let Ok(n) = a {
-                    let s = format!("\tcall $printf(l $fmt_dec, ..., d %n{})\n", n);
-                    file.write(s.as_bytes()).unwrap();
-                } else {
-                    return Err(format!(
-                        "{}:{}:{}: Invalid ',': Nothing on the stack to print",
-                        source_file, tok.col, tok.row
-                    ));
-                }
-            }
+            TokenType::PERIOD => match print_op(&mut file, stack, &source_file, tok) {
+                Ok(s) => stack = s - 1,
+                Err(e) => return Err(e),
+            },
+            TokenType::COMMA => match print_op(&mut file, stack, &source_file, tok) {
+                Ok(s) => stack = s,
+                Err(e) => return Err(e),
+            },
             TokenType::QMARK => {
                 if_stack += 1;
                 let mut s = format!("\tjnz %b, @if_{}, @else_{}\n", if_stack, if_stack);
@@ -226,39 +131,7 @@ fn comp() -> Result<(), String> {
                 file.write(s.as_bytes()).unwrap();
                 if_stack -= 1;
             }
-            TokenType::EQUAL => {
-                let s = format!(
-                    "\t%b =w ceqd %n{}, %n{}\n\t%n{} =d swtof %b\n",
-                    stack,
-                    stack - 1,
-                    stack,
-                );
-                file.write(s.as_bytes()).unwrap();
-            }
-            TokenType::INT(i) => {
-                stack += 1;
-                let s = format!("\t%n{} =d add 0, d_{}\n", stack, i);
-                file.write(s.as_bytes()).unwrap();
-            }
-            TokenType::STR(_) => {
-                stack += 1;
-            }
-            TokenType::SWAP => {
-                let a = stack;
-                let b = stack - 1;
-                let s = format!("\t%t =d add 0, %n{}\n", a);
-                file.write(s.as_bytes()).unwrap();
-                let s = format!("\t%n{} =d add 0, %n{}\n", a, b);
-                file.write(s.as_bytes()).unwrap();
-                let s = format!("\t%n{} =d add 0, %t\n", b);
-                file.write(s.as_bytes()).unwrap();
-            }
-            TokenType::DUP => {
-                stack += 1;
-                let s = format!("\t%n{} =d add 0, %n{}\n", stack, stack - 1);
-                file.write(s.as_bytes()).unwrap();
-            }
-            TokenType::EOF => {}
+            _ => println!("Unhandled token: {:?}", tok),
         }
     }
 
@@ -280,9 +153,7 @@ fn comp() -> Result<(), String> {
         .expect("failed to execute command");
     let t = cmd.stdout;
     io::stdout().write_all(&t).unwrap();
-    Ok(())
-}
 
-fn main() -> Result<(), String> {
-    comp()
+    println!();
+    Ok(())
 }
