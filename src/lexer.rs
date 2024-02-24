@@ -18,11 +18,16 @@ pub mod lexer {
         LT,
         GTE,
         GT,
-        QMARK,
-        COLON,
         SWAP,
+        OVER,
         PEEK,
+        DROP,
         DUP,
+        NIP,
+        QMARK(usize),
+        COLON(usize),
+        WHILE(usize),
+        END(usize),
     }
 
     #[derive(Debug)]
@@ -56,8 +61,13 @@ pub mod lexer {
         };
         l.char = l.program[l.pos];
         l.ident.insert("swap".to_string(), TokenType::SWAP);
+        l.ident.insert("over".to_string(), TokenType::OVER);
         l.ident.insert("peek".to_string(), TokenType::PEEK);
+        l.ident.insert("drop".to_string(), TokenType::DROP);
+        l.ident.insert("nip".to_string(), TokenType::NIP);
         l.ident.insert("dup".to_string(), TokenType::DUP);
+        l.ident.insert("while".to_string(), TokenType::WHILE(0));
+        l.ident.insert("end".to_string(), TokenType::END(0));
         l
     }
 
@@ -107,11 +117,33 @@ pub mod lexer {
             if let Some(t) = self.ident.get(&s) {
                 match t {
                     TokenType::SWAP => self.tokens.push(self.make_token(TokenType::SWAP)),
+                    TokenType::OVER => self.tokens.push(self.make_token(TokenType::OVER)),
                     TokenType::PEEK => self.tokens.push(self.make_token(TokenType::PEEK)),
+                    TokenType::DROP => self.tokens.push(self.make_token(TokenType::DROP)),
                     TokenType::DUP => self.tokens.push(self.make_token(TokenType::DUP)),
-                    _ => println!("Unhandled token: {:?}", t),
+                    TokenType::NIP => self.tokens.push(self.make_token(TokenType::NIP)),
+                    TokenType::WHILE(_) => self.tokens.push(self.make_token(TokenType::WHILE(0))),
+                    TokenType::END(_) => self.tokens.push(self.make_token(TokenType::END(0))),
+                    TokenType::INT(_) => println!("Invalid ident: {:?}", t),
+                    TokenType::STR(_) => println!("Invalid ident: {:?}", t),
+                    TokenType::PLUS => println!("Invalid ident: {:?}", t),
+                    TokenType::MINUS => println!("Invalid ident: {:?}", t),
+                    TokenType::ASTERISK => println!("Invalid ident: {:?}", t),
+                    TokenType::SLASH => println!("Invalid ident: {:?}", t),
+                    TokenType::PERIOD => println!("Invalid ident: {:?}", t),
+                    TokenType::COMMA => println!("Invalid ident: {:?}", t),
+                    TokenType::EQUAL => println!("Invalid ident: {:?}", t),
+                    TokenType::NEQUAL => println!("Invalid ident: {:?}", t),
+                    TokenType::LTE => println!("Invalid ident: {:?}", t),
+                    TokenType::LT => println!("Invalid ident: {:?}", t),
+                    TokenType::GTE => println!("Invalid ident: {:?}", t),
+                    TokenType::GT => println!("Invalid ident: {:?}", t),
+                    TokenType::QMARK(_) => println!("Invalid ident: {:?}", t),
+                    TokenType::COLON(_) => println!("Invalid ident: {:?}", t),
+                    TokenType::EOF => println!("Invalid ident: {:?}", t),
                 }
             } else {
+                println!("String not currently supported: {:?}", s);
                 self.tokens.push(self.make_token(TokenType::STR(s)));
             }
         }
@@ -143,8 +175,12 @@ pub mod lexer {
                     '=' => self.tokens.push(self.make_token(TokenType::EQUAL)),
                     '<' => self.tokens.push(self.make_token(TokenType::LT)),
                     '>' => self.tokens.push(self.make_token(TokenType::GT)),
-                    '?' => self.tokens.push(self.make_token(TokenType::QMARK)),
-                    ':' => self.tokens.push(self.make_token(TokenType::COLON)),
+                    '?' => self
+                        .tokens
+                        .push(self.make_token(TokenType::QMARK(self.pos))),
+                    ':' => self
+                        .tokens
+                        .push(self.make_token(TokenType::COLON(self.pos))),
                     '\0' => self.tokens.push(self.make_token(TokenType::EOF)),
                     _ => {
                         if self.char.is_digit(10) {
