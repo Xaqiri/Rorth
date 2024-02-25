@@ -4,3 +4,13 @@ A [stack-based](https://en.wikipedia.org/wiki/Stack-oriented_programming) [conca
 
 Inspired by [Porth](https://gitlab.com/tsoding/porth) and [Forth](https://en.wikipedia.org/wiki/Forth_(programming_language)), though the design(and name) are likely to change in the future
 
+## Examples
+
+### Factorial
+```forth
+10 1 > while
+  over * swap 1 - swap
+end
+.
+```
+

@@ -2,6 +2,12 @@ pub mod lexer {
     use std::collections::HashMap;
 
     #[derive(Debug)]
+    pub enum EndBlock {
+        Cond,
+        Loop,
+    }
+
+    #[derive(Debug)]
     pub enum TokenType {
         EOF,
         INT(u32),
@@ -27,7 +33,7 @@ pub mod lexer {
         QMARK(usize),
         COLON(usize),
         WHILE(usize),
-        END(usize),
+        END(EndBlock, usize),
     }
 
     #[derive(Debug)]
@@ -67,7 +73,8 @@ pub mod lexer {
         l.ident.insert("nip".to_string(), TokenType::NIP);
         l.ident.insert("dup".to_string(), TokenType::DUP);
         l.ident.insert("while".to_string(), TokenType::WHILE(0));
-        l.ident.insert("end".to_string(), TokenType::END(0));
+        l.ident
+            .insert("end".to_string(), TokenType::END(EndBlock::Cond, 0));
         l
     }
 
@@ -123,7 +130,9 @@ pub mod lexer {
                     TokenType::DUP => self.tokens.push(self.make_token(TokenType::DUP)),
                     TokenType::NIP => self.tokens.push(self.make_token(TokenType::NIP)),
                     TokenType::WHILE(_) => self.tokens.push(self.make_token(TokenType::WHILE(0))),
-                    TokenType::END(_) => self.tokens.push(self.make_token(TokenType::END(0))),
+                    TokenType::END(_, _) => self
+                        .tokens
+                        .push(self.make_token(TokenType::END(EndBlock::Cond, 0))),
                     TokenType::INT(_) => println!("Invalid ident: {:?}", t),
                     TokenType::STR(_) => println!("Invalid ident: {:?}", t),
                     TokenType::PLUS => println!("Invalid ident: {:?}", t),
