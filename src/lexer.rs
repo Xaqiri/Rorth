@@ -12,12 +12,14 @@ pub mod lexer {
         EOF,
         INT(u32),
         STR(String),
+        IDENT(String),
         PLUS,
         MINUS,
         ASTERISK,
         SLASH,
         PERIOD,
         COMMA,
+        SET,
         EQUAL,
         NEQUAL,
         LTE,
@@ -72,6 +74,7 @@ pub mod lexer {
         l.ident.insert("drop".to_string(), TokenType::DROP);
         l.ident.insert("nip".to_string(), TokenType::NIP);
         l.ident.insert("dup".to_string(), TokenType::DUP);
+        l.ident.insert("set".to_string(), TokenType::SET);
         l.ident.insert("while".to_string(), TokenType::WHILE(0));
         l.ident
             .insert("end".to_string(), TokenType::END(EndBlock::Cond, 0));
@@ -133,6 +136,8 @@ pub mod lexer {
                     TokenType::END(_, _) => self
                         .tokens
                         .push(self.make_token(TokenType::END(EndBlock::Cond, 0))),
+                    TokenType::SET => self.tokens.push(self.make_token(TokenType::SET)),
+                    TokenType::IDENT(s) => println!("Invalid ident: {:?} ({})", t, s),
                     TokenType::INT(_) => println!("Invalid ident: {:?}", t),
                     TokenType::STR(_) => println!("Invalid ident: {:?}", t),
                     TokenType::PLUS => println!("Invalid ident: {:?}", t),
@@ -152,8 +157,7 @@ pub mod lexer {
                     TokenType::EOF => println!("Invalid ident: {:?}", t),
                 }
             } else {
-                println!("String not currently supported: {:?}", s);
-                self.tokens.push(self.make_token(TokenType::STR(s)));
+                self.tokens.push(self.make_token(TokenType::IDENT(s)));
             }
         }
 
@@ -169,6 +173,10 @@ pub mod lexer {
             if let Ok(i) = n {
                 self.tokens.push(self.make_token(TokenType::INT(i)))
             }
+        }
+
+        fn peek(&mut self) -> char {
+            self.program[self.peek]
         }
 
         pub fn lex(&mut self) -> Result<(), String> {
@@ -187,9 +195,15 @@ pub mod lexer {
                     '?' => self
                         .tokens
                         .push(self.make_token(TokenType::QMARK(self.pos))),
-                    ':' => self
-                        .tokens
-                        .push(self.make_token(TokenType::COLON(self.pos))),
+                    ':' => {
+                        if self.peek() == '=' {
+                            self.tokens.push(self.make_token(TokenType::SET));
+                            self.advance_token();
+                        } else {
+                            self.tokens
+                                .push(self.make_token(TokenType::COLON(self.pos)));
+                        }
+                    }
                     '\0' => self.tokens.push(self.make_token(TokenType::EOF)),
                     _ => {
                         if self.char.is_digit(10) {

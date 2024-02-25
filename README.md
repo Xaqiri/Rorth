@@ -12,5 +12,13 @@ Inspired by [Porth](https://gitlab.com/tsoding/porth) and [Forth](https://en.wik
   over * swap 1 - swap
 end
 .
+
+\ with variables
+x 10 := 
+x 0 > while
+  x ,
+  1 - := 
+  x swap
+end
 ```
 

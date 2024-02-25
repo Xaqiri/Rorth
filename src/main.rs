@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{self, Write};
 use std::process::Command;
@@ -5,6 +6,10 @@ use std::process::Command;
 use rorth::lexer::lexer::{new, EndBlock, Token, TokenType};
 
 fn write_op(file: &mut File, stack: i32, op: &str) -> i32 {
+    if stack - 1 < 1 {
+        panic!("Invalid '{}': Not enough values on the stack", op);
+    }
+
     let s = format!("\t%n{} =d {} %n{}, %n{}\n", stack - 1, op, stack - 1, stack);
     file.write(s.as_bytes()).unwrap();
     stack - 1
@@ -62,9 +67,14 @@ fn over_op(file: &mut File, stack: i32, source: &str, tok: Token) -> Result<i32,
     }
 }
 
-fn push_op(file: &mut File, stack: i32, value: u32) -> i32 {
+fn push_op(file: &mut File, stack: i32, value: TokenType) -> i32 {
     let stack = stack + 1;
-    let s = format!("\t%n{} =d add 0, d_{}\n", stack, value);
+    let s: String;
+    match value {
+        TokenType::INT(i) => s = format!("\t%n{} =d add 0, d_{}\n", stack, i),
+        TokenType::IDENT(i) => s = format!("\t%n{} =d add 0, %{}\n", stack, i),
+        _ => panic!("Invalid push target: {:?}", value),
+    }
     file.write(s.as_bytes()).unwrap();
     stack
 }
@@ -89,15 +99,20 @@ fn comp_op(file: &mut File, stack: i32, op: &str) -> String {
     format!("\t%b =w c{}d %c1, %c2\n", op)
 }
 
+fn set_op(file: &mut File, stack: i32, var_name: &String) -> Result<i32, String> {
+    let s: String = format!("\t%{} =d add 0, %n{}\n", var_name, stack);
+    file.write(s.as_bytes()).unwrap();
+    let stack = stack - 1;
+    Ok(stack)
+}
+
 fn main() -> Result<(), String> {
     let source_file = "main.rs".to_string();
     let program = "
-    1 5 < while
-      over .
-      swap 1 + swap
-    end
-    ."
-    .to_string();
+x 10 := 
+y 5 :=
+x . y . x y + ."
+        .to_string();
     println!("{}: {:?}", source_file, program);
 
     let mut l = new(program);
@@ -109,6 +124,8 @@ fn main() -> Result<(), String> {
     let mut else_stack = 0;
     let mut loop_stack = 0;
     let mut cond_str = "".to_string();
+    let mut var_stack: Vec<String> = vec![];
+    let mut vars: HashSet<String> = HashSet::new();
     let mut cur_block = EndBlock::Cond;
     let mut file = File::create("../out/rorth.ssa").unwrap();
     file.write(b"export function w $main() {\n@start\n")
@@ -166,7 +183,7 @@ fn main() -> Result<(), String> {
             TokenType::LT => cond_str = comp_op(&mut file, stack, "<"),
             TokenType::GTE => cond_str = comp_op(&mut file, stack, ">="),
             TokenType::GT => cond_str = comp_op(&mut file, stack, ">"),
-            TokenType::INT(i) => stack = push_op(&mut file, stack, i),
+            TokenType::INT(_) => stack = push_op(&mut file, stack, tok.tok_type),
             TokenType::STR(_) => stack += 1,
             TokenType::SWAP => swap_op(&mut file, stack),
             TokenType::DROP => stack -= 1,
@@ -190,6 +207,23 @@ fn main() -> Result<(), String> {
                 Ok(s) => stack = s,
                 Err(e) => return Err(e),
             },
+            TokenType::SET => {
+                let var = var_stack.last();
+                if let Some(v) = var {
+                    stack = match set_op(&mut file, stack, v) {
+                        Ok(i) => i,
+                        Err(e) => return Err(e),
+                    };
+                } else {
+                    panic!("No variable to assign to");
+                }
+            }
+            TokenType::IDENT(ref s) => {
+                match vars.insert(s.to_string()) {
+                    true => var_stack.push(s.to_string()),
+                    false => stack = push_op(&mut file, stack, tok.tok_type),
+                };
+            }
             TokenType::QMARK(pos) => {
                 let mut s = format!("\tjnz %b, @if_{}, @else_{}\n", pos, pos);
                 file.write(s.as_bytes()).unwrap();
