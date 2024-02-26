@@ -9,16 +9,15 @@ Inspired by [Porth](https://gitlab.com/tsoding/porth) and [Forth](https://en.wik
 ### Factorial
 ```forth
 10 1 > while
-  over * swap 1 - swap
-end
-.
+  over * 
+  swap 1 - swap
+end .
 
 \ with variables
-x 10 := 
-x 0 > while
-  x ,
-  1 - := 
-  x swap
-end
+x 1 :=
+10 1 > while
+  over x over * := drop
+  swap 1 - swap
+end x .
 ```
 

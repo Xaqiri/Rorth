@@ -109,9 +109,11 @@ fn set_op(file: &mut File, stack: i32, var_name: &String) -> Result<i32, String>
 fn main() -> Result<(), String> {
     let source_file = "main.rs".to_string();
     let program = "
-x 10 := 
-y 5 :=
-x . y . x y + ."
+x 1 :=
+10 1 > while
+  over x over * := drop
+  swap 1 - swap
+end x ."
         .to_string();
     println!("{}: {:?}", source_file, program);
 
@@ -258,6 +260,7 @@ x . y . x y + ."
                             "\tjnz %b, @loop_{}, @end_loop_{}\n@end_loop_{}\n",
                             pos, pos, pos
                         );
+                        stack -= 2;
                     }
                 }
                 file.write(s.as_bytes()).unwrap();
