@@ -3,30 +3,57 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::process::Command;
 
-use rorth::lexer::lexer::{new, EndBlock, Token, TokenType};
+use rorth::lexer::lexer::{EndBlock, Token, TokenType};
 
 fn write_op(file: &mut File, stack: i32, op: &str) -> i32 {
-    if stack - 1 < 1 {
-        panic!("Invalid '{}': Not enough values on the stack", op);
-    }
-
     let s = format!("\t%n{} =d {} %n{}, %n{}\n", stack - 1, op, stack - 1, stack);
     file.write(s.as_bytes()).unwrap();
     stack - 1
 }
 
-fn print_op(file: &mut File, stack: i32, source: &String, tok: Token) -> Result<i32, String> {
-    match stack {
-        0 => Err(format!(
-            "{}:{}:{}: Invalid '.': Nothing on the stack to print",
-            source, tok.col, tok.row
-        )),
-        _ => {
-            let s = format!("\tcall $printf(l $fmt_dec, ..., d %n{})\n", stack);
-            file.write(s.as_bytes()).unwrap();
-            Ok(stack)
-        }
+fn push_op(file: &mut File, stack: i32, value: Token) -> i32 {
+    let stack = stack + 1;
+    let s: String;
+    match &value.tok_type {
+        TokenType::INT(i) => s = format!("\t%n{} =d add 0, d_{}\n", stack, i),
+        TokenType::IDENT(i) => s = format!("\t%n{} =d add 0, %{}\n", stack, i),
+        _ => panic!("Invalid push target: {:?}", value),
     }
+    file.write(s.as_bytes()).unwrap();
+    stack
+}
+
+fn comp_op(file: &mut File, stack: i32, op: &str) -> String {
+    let op = match op {
+        "=" => "eq",
+        "!=" => "ne",
+        "<=" => "le",
+        "<" => "lt",
+        ">=" => "ge",
+        ">" => "gt",
+        _ => panic!("Unknown op: {}", op),
+    };
+    let s = format!(
+        "\t%c1 =d add 0, %n{}\n\t%c2 =d add 0, %n{}\n\t%b =w c{}d %c1, %c2\n",
+        stack - 1,
+        stack,
+        op,
+    );
+    file.write(s.as_bytes()).unwrap();
+    format!("\t%b =w c{}d %c1, %c2\n", op)
+}
+
+fn set_op(file: &mut File, stack: i32, var_name: &String) -> Result<i32, String> {
+    let s: String = format!("\t%{} =d add 0, %n{}\n", var_name, stack);
+    file.write(s.as_bytes()).unwrap();
+    let stack = stack - 1;
+    Ok(stack)
+}
+
+fn print_op(file: &mut File, stack: i32) -> Result<i32, String> {
+    let s = format!("\tcall $printf(l $fmt_dec, ..., d %n{})\n", stack);
+    file.write(s.as_bytes()).unwrap();
+    Ok(stack)
 }
 
 fn dup_op(file: &mut File, stack: i32, source: &String, tok: Token) -> Result<i32, String> {
@@ -53,127 +80,23 @@ fn swap_op(file: &mut File, stack: i32) {
     file.write(s.as_bytes()).unwrap();
 }
 
-fn over_op(file: &mut File, stack: i32, source: &str, tok: Token) -> Result<i32, String> {
-    match stack {
-        0 | 1 => Err(format!(
-            "{}:{}:{}: Invalid 'over': Not enough values on the stack",
-            source, tok.col, tok.row
-        )),
-        _ => {
-            let s = format!("\t%n{} =d add 0, %n{}\n", stack + 1, stack - 1);
-            file.write(s.as_bytes()).unwrap();
-            Ok(stack + 1)
-        }
-    }
-}
-
-fn push_op(file: &mut File, stack: i32, value: TokenType) -> i32 {
-    let stack = stack + 1;
-    let s: String;
-    match value {
-        TokenType::INT(i) => s = format!("\t%n{} =d add 0, d_{}\n", stack, i),
-        TokenType::IDENT(i) => s = format!("\t%n{} =d add 0, %{}\n", stack, i),
-        _ => panic!("Invalid push target: {:?}", value),
-    }
+fn over_op(file: &mut File, stack: i32) -> Result<i32, String> {
+    let s = format!("\t%n{} =d add 0, %n{}\n", stack + 1, stack - 1);
     file.write(s.as_bytes()).unwrap();
-    stack
+    Ok(stack + 1)
 }
 
-fn comp_op(file: &mut File, stack: i32, op: &str) -> String {
-    let op = match op {
-        "=" => "eq",
-        "!=" => "ne",
-        "<=" => "le",
-        "<" => "lt",
-        ">=" => "ge",
-        ">" => "gt",
-        _ => todo!(),
-    };
-    let s = format!(
-        "\t%c1 =d add 0, %n{}\n\t%c2 =d add 0, %n{}\n\t%b =w c{}d %c1, %c2\n",
-        stack - 1,
-        stack,
-        op,
-    );
-    file.write(s.as_bytes()).unwrap();
-    format!("\t%b =w c{}d %c1, %c2\n", op)
-}
-
-fn set_op(file: &mut File, stack: i32, var_name: &String) -> Result<i32, String> {
-    let s: String = format!("\t%{} =d add 0, %n{}\n", var_name, stack);
-    file.write(s.as_bytes()).unwrap();
-    let stack = stack - 1;
-    Ok(stack)
-}
-
-fn main() -> Result<(), String> {
-    let source_file = "main.rs".to_string();
-    let program = "
-x 1 :=
-10 1 > while
-  over x over * := drop
-  swap 1 - swap
-end x ."
-        .to_string();
-    println!("{}: {:?}", source_file, program);
-
-    let mut l = new(program);
-    if let Err(e) = l.lex() {
-        return Err(e);
-    }
+fn compile(tokens: Vec<Token>, source_file: String) -> Result<(), String> {
     let mut stack = 0;
-    let mut if_stack = 0;
     let mut else_stack = 0;
-    let mut loop_stack = 0;
     let mut cond_str = "".to_string();
     let mut var_stack: Vec<String> = vec![];
     let mut vars: HashSet<String> = HashSet::new();
-    let mut cur_block = EndBlock::Cond;
     let mut file = File::create("../out/rorth.ssa").unwrap();
     file.write(b"export function w $main() {\n@start\n")
         .unwrap();
 
-    let mut if_end_stack = if_stack;
-    let mut loop_end_stack = loop_stack;
-    for tok in &mut l.tokens {
-        match tok.tok_type {
-            TokenType::QMARK(_) => {
-                if_stack += 1;
-                if_end_stack = if_stack;
-                cur_block = EndBlock::Cond;
-                tok.tok_type = TokenType::QMARK(if_end_stack);
-            }
-            TokenType::COLON(_) => {
-                else_stack += 1;
-                if else_stack > if_stack {
-                    return Err(format!(
-                        "{}:{}:{}: Invalid ':': Can't use ':' without preceding '?'",
-                        source_file, tok.col, tok.row
-                    ));
-                }
-                tok.tok_type = TokenType::COLON(else_stack);
-            }
-            TokenType::WHILE(_) => {
-                loop_stack += 1;
-                loop_end_stack = loop_stack;
-                cur_block = EndBlock::Loop;
-                tok.tok_type = TokenType::WHILE(loop_end_stack);
-            }
-            TokenType::END(_, _) => match cur_block {
-                EndBlock::Cond => {
-                    tok.tok_type = TokenType::END(EndBlock::Cond, if_end_stack);
-                    if_end_stack -= 1;
-                }
-                EndBlock::Loop => {
-                    tok.tok_type = TokenType::END(EndBlock::Loop, loop_stack);
-                    loop_end_stack -= 1;
-                }
-            },
-            _ => continue,
-        }
-    }
-
-    for tok in l.tokens {
+    for tok in tokens {
         match tok.tok_type {
             TokenType::PLUS => stack = write_op(&mut file, stack, "add"),
             TokenType::MINUS => stack = write_op(&mut file, stack, "sub"),
@@ -185,7 +108,7 @@ end x ."
             TokenType::LT => cond_str = comp_op(&mut file, stack, "<"),
             TokenType::GTE => cond_str = comp_op(&mut file, stack, ">="),
             TokenType::GT => cond_str = comp_op(&mut file, stack, ">"),
-            TokenType::INT(_) => stack = push_op(&mut file, stack, tok.tok_type),
+            TokenType::INT(_) => stack = push_op(&mut file, stack, tok),
             TokenType::STR(_) => stack += 1,
             TokenType::SWAP => swap_op(&mut file, stack),
             TokenType::DROP => stack -= 1,
@@ -193,7 +116,7 @@ end x ."
                 swap_op(&mut file, stack);
                 stack -= 1;
             }
-            TokenType::OVER => match over_op(&mut file, stack, &source_file, tok) {
+            TokenType::OVER => match over_op(&mut file, stack) {
                 Ok(s) => stack = s,
                 Err(e) => return Err(e),
             },
@@ -201,11 +124,11 @@ end x ."
                 Ok(s) => stack = s,
                 Err(e) => return Err(e),
             },
-            TokenType::PERIOD => match print_op(&mut file, stack, &source_file, tok) {
+            TokenType::PERIOD => match print_op(&mut file, stack) {
                 Ok(s) => stack = s - 1,
                 Err(e) => return Err(e),
             },
-            TokenType::COMMA => match print_op(&mut file, stack, &source_file, tok) {
+            TokenType::COMMA => match print_op(&mut file, stack) {
                 Ok(s) => stack = s,
                 Err(e) => return Err(e),
             },
@@ -217,39 +140,38 @@ end x ."
                         Err(e) => return Err(e),
                     };
                 } else {
-                    panic!("No variable to assign to");
+                    return Err("No variable to assign to".to_string());
                 }
             }
             TokenType::IDENT(ref s) => {
                 match vars.insert(s.to_string()) {
                     true => var_stack.push(s.to_string()),
-                    false => stack = push_op(&mut file, stack, tok.tok_type),
+                    false => stack = push_op(&mut file, stack, tok),
                 };
             }
-            TokenType::QMARK(pos) => {
-                let mut s = format!("\tjnz %b, @if_{}, @else_{}\n", pos, pos);
-                file.write(s.as_bytes()).unwrap();
-                s = format!("@if_{}\n", pos);
+            TokenType::IF(pos) => {
+                let s = format!("\tjnz %b, @if_{}, @else_{}\n@if_{}\n", pos, pos, pos);
                 file.write(s.as_bytes()).unwrap();
             }
-            TokenType::COLON(pos) => {
+            TokenType::ELSE(pos) => {
                 let s = format!("\tjmp @end_if_{}\n@else_{}\n", pos, pos);
                 file.write(s.as_bytes()).unwrap();
             }
             TokenType::WHILE(pos) => {
-                let mut s = format!("\tjnz %b, @loop_{}, @end_loop_{}\n", pos, pos);
-                file.write(s.as_bytes()).unwrap();
-                s = format!("@loop_{}\n", pos);
+                let s = format!(
+                    "\tjnz %b, @loop_{}, @end_loop_{}\n@loop_{}\n",
+                    pos, pos, pos
+                );
                 file.write(s.as_bytes()).unwrap();
             }
-            TokenType::END(block, pos) => {
+            TokenType::END(cur_block, pos) => {
                 let s: String;
-                match block {
+                match cur_block {
                     EndBlock::Cond => {
-                        if if_stack == else_stack {
-                            s = format!("@end_if_{}\n", pos);
-                        } else {
+                        if pos == 0 {
                             s = format!("@else_{}\n@end_if_{}\n", pos, pos);
+                        } else {
+                            s = format!("@end_if_{}\n", pos);
                         }
                     }
                     EndBlock::Loop => {
@@ -260,12 +182,13 @@ end x ."
                             "\tjnz %b, @loop_{}, @end_loop_{}\n@end_loop_{}\n",
                             pos, pos, pos
                         );
-                        stack -= 2;
+                        stack -= 1;
                     }
                 }
                 file.write(s.as_bytes()).unwrap();
             }
-            _ => println!("Unhandled token: {:?}", tok),
+            TokenType::EOF => break,
+            _ => return Err(format!("compiler: Unhandled token: {:?}", tok)),
         }
     }
 
@@ -280,6 +203,32 @@ end x ."
     //     let s = format!("data $str_{} = {{ b \"{}\", b 0 }}\n", i, i);
     //     file.write(s.as_bytes()).unwrap();
     // }
+    Ok(())
+}
+
+fn main() -> Result<(), String> {
+    let source_file = "main.rs".to_string();
+    let program = "
+    10 1 < if
+      .
+    else
+      0 .
+    end"
+    .to_string();
+
+    println!("{}: {:?}", source_file, program);
+
+    let mut l = rorth::lexer::lexer::new(program);
+    if let Err(e) = l.lex() {
+        return Err(e);
+    }
+    let mut p = rorth::parser::parser::new(source_file.clone(), l.tokens);
+    if let Err(e) = p.parse() {
+        return Err(e);
+    }
+    if let Err(e) = compile(p.tokens, source_file) {
+        return Err(e);
+    }
 
     let cmd = Command::new("sh")
         .arg("-c")

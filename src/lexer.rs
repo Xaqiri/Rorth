@@ -1,13 +1,13 @@
 pub mod lexer {
     use std::collections::HashMap;
 
-    #[derive(Debug)]
+    #[derive(Debug, PartialEq, Eq, Clone)]
     pub enum EndBlock {
         Cond,
         Loop,
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, PartialEq, Eq, Clone)]
     pub enum TokenType {
         EOF,
         INT(u32),
@@ -32,13 +32,15 @@ pub mod lexer {
         DROP,
         DUP,
         NIP,
-        QMARK(usize),
-        COLON(usize),
-        WHILE(usize),
-        END(EndBlock, usize),
+        QMARK,
+        COLON,
+        IF(i32),
+        ELSE(i32),
+        WHILE(i32),
+        END(EndBlock, i32),
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Token {
         pub col: usize,
         pub row: usize,
@@ -75,6 +77,8 @@ pub mod lexer {
         l.ident.insert("nip".to_string(), TokenType::NIP);
         l.ident.insert("dup".to_string(), TokenType::DUP);
         l.ident.insert("set".to_string(), TokenType::SET);
+        l.ident.insert("if".to_string(), TokenType::IF(0));
+        l.ident.insert("else".to_string(), TokenType::ELSE(0));
         l.ident.insert("while".to_string(), TokenType::WHILE(0));
         l.ident
             .insert("end".to_string(), TokenType::END(EndBlock::Cond, 0));
@@ -87,12 +91,13 @@ pub mod lexer {
                 println!("{:?}", i);
             }
         }
+
         pub fn advance_token(&mut self) {
             self.pos += 1;
             self.col += 1;
             self.peek += 1;
             if self.pos >= self.program.len() {
-                self.char = '\0';
+                return;
             } else {
                 self.char = self.program[self.pos];
             }
@@ -123,7 +128,7 @@ pub mod lexer {
                 ident.push(self.program[self.peek]);
                 self.advance_token();
             }
-            let s = ident.iter().collect();
+            let s = ident.into_iter().collect();
             if let Some(t) = self.ident.get(&s) {
                 match t {
                     TokenType::SWAP => self.tokens.push(self.make_token(TokenType::SWAP)),
@@ -132,6 +137,8 @@ pub mod lexer {
                     TokenType::DROP => self.tokens.push(self.make_token(TokenType::DROP)),
                     TokenType::DUP => self.tokens.push(self.make_token(TokenType::DUP)),
                     TokenType::NIP => self.tokens.push(self.make_token(TokenType::NIP)),
+                    TokenType::IF(_) => self.tokens.push(self.make_token(TokenType::IF(0))),
+                    TokenType::ELSE(_) => self.tokens.push(self.make_token(TokenType::ELSE(0))),
                     TokenType::WHILE(_) => self.tokens.push(self.make_token(TokenType::WHILE(0))),
                     TokenType::END(_, _) => self
                         .tokens
@@ -152,8 +159,8 @@ pub mod lexer {
                     TokenType::LT => println!("Invalid ident: {:?}", t),
                     TokenType::GTE => println!("Invalid ident: {:?}", t),
                     TokenType::GT => println!("Invalid ident: {:?}", t),
-                    TokenType::QMARK(_) => println!("Invalid ident: {:?}", t),
-                    TokenType::COLON(_) => println!("Invalid ident: {:?}", t),
+                    TokenType::QMARK => println!("Invalid ident: {:?}", t),
+                    TokenType::COLON => println!("Invalid ident: {:?}", t),
                     TokenType::EOF => println!("Invalid ident: {:?}", t),
                 }
             } else {
@@ -175,12 +182,12 @@ pub mod lexer {
             }
         }
 
-        fn peek(&mut self) -> char {
+        fn peek(&self) -> char {
             self.program[self.peek]
         }
 
-        pub fn lex(&mut self) -> Result<(), String> {
-            while self.char != '\0' {
+        pub fn lex(&mut self) -> Result<Vec<Token>, String> {
+            while self.pos < self.program.len() - 1 {
                 self.skip_space();
                 match self.char {
                     '+' => self.tokens.push(self.make_token(TokenType::PLUS)),
@@ -192,19 +199,15 @@ pub mod lexer {
                     '=' => self.tokens.push(self.make_token(TokenType::EQUAL)),
                     '<' => self.tokens.push(self.make_token(TokenType::LT)),
                     '>' => self.tokens.push(self.make_token(TokenType::GT)),
-                    '?' => self
-                        .tokens
-                        .push(self.make_token(TokenType::QMARK(self.pos))),
+                    '?' => self.tokens.push(self.make_token(TokenType::QMARK)),
                     ':' => {
                         if self.peek() == '=' {
                             self.tokens.push(self.make_token(TokenType::SET));
                             self.advance_token();
                         } else {
-                            self.tokens
-                                .push(self.make_token(TokenType::COLON(self.pos)));
+                            self.tokens.push(self.make_token(TokenType::COLON));
                         }
                     }
-                    '\0' => self.tokens.push(self.make_token(TokenType::EOF)),
                     _ => {
                         if self.char.is_digit(10) {
                             self.get_number();
@@ -220,7 +223,8 @@ pub mod lexer {
                 }
                 self.advance_token();
             }
-            Ok(())
+            self.tokens.push(self.make_token(TokenType::EOF));
+            Ok(self.tokens.to_vec())
         }
     }
 }
