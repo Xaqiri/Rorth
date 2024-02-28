@@ -23,7 +23,8 @@ fn push_op(file: &mut File, stack: i32, value: Token) -> i32 {
     stack
 }
 
-fn comp_op(file: &mut File, stack: i32, op: &str) -> String {
+fn comp_op(file: &mut File, stack: i32, op: &str) -> (i32, String) {
+    let stack = stack + 1;
     let op = match op {
         "=" => "eq",
         "!=" => "ne",
@@ -34,26 +35,26 @@ fn comp_op(file: &mut File, stack: i32, op: &str) -> String {
         _ => panic!("Unknown op: {}", op),
     };
     let s = format!(
-        "\t%c1 =d add 0, %n{}\n\t%c2 =d add 0, %n{}\n\t%b =w c{}d %c1, %c2\n",
+        "\t%b =w c{}d %n{}, %n{}\n\t%n{} =d swtof %b\n",
+        op,
+        stack - 2,
         stack - 1,
         stack,
-        op,
     );
     file.write(s.as_bytes()).unwrap();
-    format!("\t%b =w c{}d %c1, %c2\n", op)
+    (stack, s)
 }
 
 fn set_op(file: &mut File, stack: i32, var_name: &String) -> Result<i32, String> {
     let s: String = format!("\t%{} =d add 0, %n{}\n", var_name, stack);
     file.write(s.as_bytes()).unwrap();
-    let stack = stack - 1;
-    Ok(stack)
+    Ok(stack - 1)
 }
 
 fn print_op(file: &mut File, stack: i32) -> Result<i32, String> {
     let s = format!("\tcall $printf(l $fmt_dec, ..., d %n{})\n", stack);
     file.write(s.as_bytes()).unwrap();
-    Ok(stack)
+    Ok(stack - 1)
 }
 
 fn dup_op(file: &mut File, stack: i32, source: &String, tok: Token) -> Result<i32, String> {
@@ -88,7 +89,6 @@ fn over_op(file: &mut File, stack: i32) -> Result<i32, String> {
 
 fn compile(tokens: Vec<Token>, source_file: String) -> Result<(), String> {
     let mut stack = 0;
-    let mut else_stack = 0;
     let mut cond_str = "".to_string();
     let mut var_stack: Vec<String> = vec![];
     let mut vars: HashSet<String> = HashSet::new();
@@ -102,12 +102,12 @@ fn compile(tokens: Vec<Token>, source_file: String) -> Result<(), String> {
             TokenType::MINUS => stack = write_op(&mut file, stack, "sub"),
             TokenType::ASTERISK => stack = write_op(&mut file, stack, "mul"),
             TokenType::SLASH => stack = write_op(&mut file, stack, "div"),
-            TokenType::EQUAL => cond_str = comp_op(&mut file, stack, "="),
-            TokenType::NEQUAL => cond_str = comp_op(&mut file, stack, "!="),
-            TokenType::LTE => cond_str = comp_op(&mut file, stack, "<="),
-            TokenType::LT => cond_str = comp_op(&mut file, stack, "<"),
-            TokenType::GTE => cond_str = comp_op(&mut file, stack, ">="),
-            TokenType::GT => cond_str = comp_op(&mut file, stack, ">"),
+            TokenType::EQUAL => (stack, cond_str) = comp_op(&mut file, stack, "="),
+            TokenType::NEQUAL => (stack, cond_str) = comp_op(&mut file, stack, "!="),
+            TokenType::LTE => (stack, cond_str) = comp_op(&mut file, stack, "<="),
+            TokenType::LT => (stack, cond_str) = comp_op(&mut file, stack, "<"),
+            TokenType::GTE => (stack, cond_str) = comp_op(&mut file, stack, ">="),
+            TokenType::GT => (stack, cond_str) = comp_op(&mut file, stack, ">"),
             TokenType::INT(_) => stack = push_op(&mut file, stack, tok),
             TokenType::STR(_) => stack += 1,
             TokenType::SWAP => swap_op(&mut file, stack),
@@ -125,11 +125,11 @@ fn compile(tokens: Vec<Token>, source_file: String) -> Result<(), String> {
                 Err(e) => return Err(e),
             },
             TokenType::PERIOD => match print_op(&mut file, stack) {
-                Ok(s) => stack = s - 1,
+                Ok(s) => stack = s,
                 Err(e) => return Err(e),
             },
             TokenType::COMMA => match print_op(&mut file, stack) {
-                Ok(s) => stack = s,
+                Ok(s) => stack = s + 1,
                 Err(e) => return Err(e),
             },
             TokenType::SET => {
@@ -150,14 +150,40 @@ fn compile(tokens: Vec<Token>, source_file: String) -> Result<(), String> {
                 };
             }
             TokenType::IF(pos) => {
-                let s = format!("\tjnz %b, @if_{}, @else_{}\n@if_{}\n", pos, pos, pos);
+                let s = format!(
+                    "\t%b =w dtosi %n{}\n\tjnz %b, @if_{}, @else_{}\n@if_{}\n",
+                    stack, pos, pos, pos
+                );
                 file.write(s.as_bytes()).unwrap();
             }
             TokenType::ELSE(pos) => {
                 let s = format!("\tjmp @end_if_{}\n@else_{}\n", pos, pos);
                 file.write(s.as_bytes()).unwrap();
             }
-            TokenType::WHILE(pos) => {
+            TokenType::WHILE(op, pos) => {
+                stack -= 1;
+                let s = format!("\t%c_{}_{} =d add 0, %n{}\n", pos, pos, stack - 1);
+                file.write(s.as_bytes()).unwrap();
+                let s = format!("\t%c_{}_{} =d add 0, %n{}\n", pos, pos + 1, stack);
+                file.write(s.as_bytes()).unwrap();
+                let comp = match *op.to_owned() {
+                    TokenType::EQUAL => "eq",
+                    TokenType::NEQUAL => "ne",
+                    TokenType::LTE => "le",
+                    TokenType::LT => "lt",
+                    TokenType::GTE => "ge",
+                    TokenType::GT => "gt",
+                    _ => todo!(),
+                };
+                let s = format!(
+                    "\t%b =w c{}d %c_{}_{}, %c_{}_{}\n",
+                    comp,
+                    pos,
+                    pos,
+                    pos,
+                    pos + 1
+                );
+                file.write(s.as_bytes()).unwrap();
                 let s = format!(
                     "\tjnz %b, @loop_{}, @end_loop_{}\n@loop_{}\n",
                     pos, pos, pos
@@ -173,19 +199,19 @@ fn compile(tokens: Vec<Token>, source_file: String) -> Result<(), String> {
                         } else {
                             s = format!("@end_if_{}\n", pos);
                         }
+                        file.write(s.as_bytes()).unwrap();
                     }
                     EndBlock::Loop => {
-                        let c = format!("\t%c1 =d add 0, %n{}\n", stack - 1);
-                        file.write(c.as_bytes()).unwrap();
+                        s = format!("\t%c_{}_{} =d sub %c_{}_{}, 1\n", pos, pos, pos, pos,);
+                        file.write(s.as_bytes()).unwrap();
                         file.write(cond_str.as_bytes()).unwrap();
-                        s = format!(
+                        let s = format!(
                             "\tjnz %b, @loop_{}, @end_loop_{}\n@end_loop_{}\n",
                             pos, pos, pos
                         );
-                        stack -= 1;
+                        file.write(s.as_bytes()).unwrap();
                     }
                 }
-                file.write(s.as_bytes()).unwrap();
             }
             TokenType::EOF => break,
             _ => return Err(format!("compiler: Unhandled token: {:?}", tok)),
@@ -209,12 +235,12 @@ fn compile(tokens: Vec<Token>, source_file: String) -> Result<(), String> {
 fn main() -> Result<(), String> {
     let source_file = "main.rs".to_string();
     let program = "
-    10 1 < if
-      .
-    else
-      0 .
-    end"
-    .to_string();
+1 x :=
+10 1 > while
+  over x * :=
+  swap 1 - swap
+end x ."
+        .to_string();
 
     println!("{}: {:?}", source_file, program);
 
@@ -226,6 +252,7 @@ fn main() -> Result<(), String> {
     if let Err(e) = p.parse() {
         return Err(e);
     }
+    p.print();
     if let Err(e) = compile(p.tokens, source_file) {
         return Err(e);
     }

@@ -83,7 +83,7 @@ pub mod parser {
             let err = self.stack_overflow(tok, req, change);
             match err {
                 Ok(i) => {
-                    if i < 2 {
+                    if i < 0 {
                         panic!(
                             "{}",
                             format!(
@@ -142,13 +142,14 @@ pub mod parser {
                             )
                         );
                     }
+                    let op = &self.tokens[self.pos - 1].tok_type;
                     let new_tok: Token;
                     self.loop_stack += 1;
                     self.loop_end_stack = self.loop_stack;
                     new_tok = Token {
                         col: tok.col,
                         row: tok.row,
-                        tok_type: TokenType::WHILE(self.loop_end_stack),
+                        tok_type: TokenType::WHILE(Box::new(op.clone()), self.loop_end_stack),
                     };
                     self.cur_block = EndBlock::Loop;
                     return Ok(new_tok);
@@ -221,7 +222,7 @@ pub mod parser {
                     TokenType::PERIOD => self.stack_overflow(tok, 1, -1),
                     TokenType::COMMA => self.stack_overflow(tok, 1, 0),
                     TokenType::SET => self.parse_set(),
-                    TokenType::IF(_) => match self.parse_if_block(tok, 1, 0) {
+                    TokenType::IF(_) => match self.parse_if_block(tok, 1, -1) {
                         Ok(t) => {
                             self.tokens[self.pos] = t;
                             Ok(self.stack)
@@ -243,7 +244,7 @@ pub mod parser {
                         Err(e) => Err(e),
                     },
                     TokenType::INT(_) => Ok(self.stack + 1),
-                    TokenType::WHILE(_) => match self.parse_while_block(tok, 1, 0) {
+                    TokenType::WHILE(_, _) => match self.parse_while_block(tok, 1, 0) {
                         Ok(t) => {
                             self.tokens[self.pos] = t;
                             Ok(self.stack)

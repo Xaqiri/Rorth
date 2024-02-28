@@ -36,7 +36,7 @@ pub mod lexer {
         COLON,
         IF(i32),
         ELSE(i32),
-        WHILE(i32),
+        WHILE(Box<TokenType>, i32),
         END(EndBlock, i32),
     }
 
@@ -79,7 +79,10 @@ pub mod lexer {
         l.ident.insert("set".to_string(), TokenType::SET);
         l.ident.insert("if".to_string(), TokenType::IF(0));
         l.ident.insert("else".to_string(), TokenType::ELSE(0));
-        l.ident.insert("while".to_string(), TokenType::WHILE(0));
+        l.ident.insert(
+            "while".to_string(),
+            TokenType::WHILE(Box::new(TokenType::EQUAL), 0),
+        );
         l.ident
             .insert("end".to_string(), TokenType::END(EndBlock::Cond, 0));
         l
@@ -139,7 +142,9 @@ pub mod lexer {
                     TokenType::NIP => self.tokens.push(self.make_token(TokenType::NIP)),
                     TokenType::IF(_) => self.tokens.push(self.make_token(TokenType::IF(0))),
                     TokenType::ELSE(_) => self.tokens.push(self.make_token(TokenType::ELSE(0))),
-                    TokenType::WHILE(_) => self.tokens.push(self.make_token(TokenType::WHILE(0))),
+                    TokenType::WHILE(_, _) => self
+                        .tokens
+                        .push(self.make_token(TokenType::WHILE(Box::new(TokenType::EQUAL), 0))),
                     TokenType::END(_, _) => self
                         .tokens
                         .push(self.make_token(TokenType::END(EndBlock::Cond, 0))),
