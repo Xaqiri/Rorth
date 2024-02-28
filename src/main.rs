@@ -235,11 +235,10 @@ fn compile(tokens: Vec<Token>, source_file: String) -> Result<(), String> {
 fn main() -> Result<(), String> {
     let source_file = "main.rs".to_string();
     let program = "
-1 x :=
 10 1 > while
-  over x * :=
+  over . 
   swap 1 - swap
-end x ."
+end ."
         .to_string();
 
     println!("{}: {:?}", source_file, program);
@@ -252,7 +251,6 @@ end x ."
     if let Err(e) = p.parse() {
         return Err(e);
     }
-    p.print();
     if let Err(e) = compile(p.tokens, source_file) {
         return Err(e);
     }
@@ -264,6 +262,8 @@ end x ."
         .expect("failed to execute command");
     let output = cmd.stdout;
     io::stdout().write_all(&output).unwrap();
+    let errout = cmd.stderr;
+    io::stdout().write_all(&errout).unwrap();
 
     println!();
     Ok(())

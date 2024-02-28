@@ -6,17 +6,28 @@ Inspired by [Porth](https://gitlab.com/tsoding/porth) and [Forth](https://en.wik
 
 ## Examples
 
-### Factorial
+### Conditionals
+```forth
+1 1 = if
+  1 .
+else 
+  0 .
+end 
+```
+
+### Loops
 ```forth
 10 1 > while
-  over * 
+  over . 
   swap 1 - swap
 end .
+```
 
-\ with variables
-x 1 :=
+### Factorial
+```forth
+1 x :=
 10 1 > while
-  over x over * := drop
+  over x * :=
   swap 1 - swap
 end x .
 ```
