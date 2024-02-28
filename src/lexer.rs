@@ -34,6 +34,10 @@ pub mod lexer {
         NIP,
         QMARK,
         COLON,
+        SEMICOLON,
+        LPAREN,
+        RPAREN,
+        EM,
         IF(i32),
         ELSE(i32),
         WHILE(Box<TokenType>, i32),
@@ -53,7 +57,7 @@ pub mod lexer {
         row: usize,
         peek: usize,
         char: char,
-        program: Vec<char>,
+        source: Vec<char>,
         ident: HashMap<String, TokenType>,
         pub tokens: Vec<Token>,
     }
@@ -65,11 +69,11 @@ pub mod lexer {
             row: 0,
             peek: 1,
             char: ' ',
-            program: code.chars().collect(),
+            source: code.chars().collect(),
             ident: HashMap::new(),
             tokens: vec![],
         };
-        l.char = l.program[l.pos];
+        l.char = l.source[l.pos];
         l.ident.insert("swap".to_string(), TokenType::SWAP);
         l.ident.insert("over".to_string(), TokenType::OVER);
         l.ident.insert("peek".to_string(), TokenType::PEEK);
@@ -99,10 +103,10 @@ pub mod lexer {
             self.pos += 1;
             self.col += 1;
             self.peek += 1;
-            if self.pos >= self.program.len() {
+            if self.pos >= self.source.len() {
                 return;
             } else {
-                self.char = self.program[self.pos];
+                self.char = self.source[self.pos];
             }
         }
 
@@ -110,7 +114,7 @@ pub mod lexer {
             if self.char == '\0' {
                 return;
             }
-            if self.program[self.pos].is_whitespace() {
+            if self.source[self.pos].is_whitespace() {
                 self.advance_token();
                 self.skip_space();
             }
@@ -127,8 +131,8 @@ pub mod lexer {
         pub fn get_ident(&mut self) {
             let mut ident = vec![];
             ident.push(self.char);
-            while self.peek < self.program.len() && self.program[self.peek].is_alphabetic() {
-                ident.push(self.program[self.peek]);
+            while self.peek < self.source.len() && self.source[self.peek].is_alphabetic() {
+                ident.push(self.source[self.peek]);
                 self.advance_token();
             }
             let s = ident.into_iter().collect();
@@ -166,6 +170,10 @@ pub mod lexer {
                     TokenType::GT => println!("Invalid ident: {:?}", t),
                     TokenType::QMARK => println!("Invalid ident: {:?}", t),
                     TokenType::COLON => println!("Invalid ident: {:?}", t),
+                    TokenType::SEMICOLON => println!("Invalid ident: {:?}", t),
+                    TokenType::EM => println!("Invalid ident: {:?}", t),
+                    TokenType::LPAREN => println!("Invalid ident: {:?}", t),
+                    TokenType::RPAREN => println!("Invalid ident: {:?}", t),
                     TokenType::EOF => println!("Invalid ident: {:?}", t),
                 }
             } else {
@@ -176,8 +184,8 @@ pub mod lexer {
         pub fn get_number(&mut self) {
             let mut num = vec![];
             num.push(self.char);
-            while self.peek < self.program.len() && self.program[self.peek].is_digit(10) {
-                num.push(self.program[self.peek]);
+            while self.peek < self.source.len() && self.source[self.peek].is_digit(10) {
+                num.push(self.source[self.peek]);
                 self.advance_token();
             }
             let s: String = num.iter().collect();
@@ -188,15 +196,14 @@ pub mod lexer {
         }
 
         fn peek(&self) -> char {
-            self.program[self.peek]
+            self.source[self.peek]
         }
 
         pub fn lex(&mut self) -> Result<Vec<Token>, String> {
-            while self.pos < self.program.len() - 1 {
+            while self.pos < self.source.len() - 1 {
                 self.skip_space();
                 match self.char {
                     '+' => self.tokens.push(self.make_token(TokenType::PLUS)),
-                    '-' => self.tokens.push(self.make_token(TokenType::MINUS)),
                     '*' => self.tokens.push(self.make_token(TokenType::ASTERISK)),
                     '/' => self.tokens.push(self.make_token(TokenType::SLASH)),
                     '.' => self.tokens.push(self.make_token(TokenType::PERIOD)),
@@ -205,6 +212,17 @@ pub mod lexer {
                     '<' => self.tokens.push(self.make_token(TokenType::LT)),
                     '>' => self.tokens.push(self.make_token(TokenType::GT)),
                     '?' => self.tokens.push(self.make_token(TokenType::QMARK)),
+                    ';' => self.tokens.push(self.make_token(TokenType::SEMICOLON)),
+                    '(' => self.tokens.push(self.make_token(TokenType::LPAREN)),
+                    ')' => self.tokens.push(self.make_token(TokenType::RPAREN)),
+                    '-' => {
+                        if self.peek() == '-' {
+                            self.tokens.push(self.make_token(TokenType::EM));
+                            self.advance_token();
+                        } else {
+                            self.tokens.push(self.make_token(TokenType::MINUS))
+                        }
+                    }
                     ':' => {
                         if self.peek() == '=' {
                             self.tokens.push(self.make_token(TokenType::SET));

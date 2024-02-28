@@ -6,7 +6,7 @@ pub mod parser {
     pub struct Parser {
         pos: usize,
         peek: usize,
-        source: String,
+        source_file: String,
         stack: i32,
         var_stack: Vec<String>,
         vars: HashSet<String>,
@@ -16,6 +16,7 @@ pub mod parser {
         if_end_stack: i32,
         loop_end_stack: i32,
         cur_block: EndBlock,
+        parse_inside: bool,
         pub tokens: Vec<Token>,
     }
 
@@ -23,7 +24,7 @@ pub mod parser {
         let p = Parser {
             pos: 0,
             peek: 1,
-            source,
+            source_file: source,
             stack: 0,
             var_stack: vec![],
             vars: HashSet::new(),
@@ -33,6 +34,7 @@ pub mod parser {
             if_end_stack: 0,
             loop_end_stack: 0,
             cur_block: EndBlock::Cond,
+            parse_inside: true,
             tokens,
         };
         p
@@ -50,14 +52,22 @@ pub mod parser {
             self.peek += 1;
         }
 
+        fn peek(&self) -> &Token {
+            &self.tokens[self.peek]
+        }
+
         fn stack_overflow(&mut self, tok: &Token, req: i32, change: i32) -> Result<i32, String> {
-            if self.stack < req {
-                return Err(format!(
-                    "{}:{}:{}: Invalid {:?}: Not enough values on the stack",
-                    self.source, tok.col, tok.row, tok.tok_type
-                ));
+            if self.parse_inside {
+                if self.stack < req {
+                    return Err(format!(
+                        "{}:{}:{}: Invalid {:?}: Not enough values on the stack",
+                        self.source_file, tok.col, tok.row, tok.tok_type
+                    ));
+                }
+                return Ok(self.stack + change);
+            } else {
+                return Ok(self.stack);
             }
-            Ok(self.stack + change)
         }
 
         fn parse_ident(&mut self, var: &String) -> Result<i32, String> {
@@ -88,7 +98,7 @@ pub mod parser {
                             "{}",
                             format!(
                                 "{}:{}:{}: Invalid {:?}: Nothing on the stack to compare",
-                                self.source, tok.row, tok.col, tok.tok_type
+                                self.source_file, tok.row, tok.col, tok.tok_type
                             )
                         );
                     }
@@ -106,7 +116,7 @@ pub mod parser {
                         if self.else_stack == 0 {
                             return Err(format!(
                                 "{}:{}:{}: Invalid {:?}: Can't use {:?} without preceding IF",
-                                self.source, tok.col, tok.row, tok.tok_type, tok.tok_type
+                                self.source_file, tok.col, tok.row, tok.tok_type, tok.tok_type
                             ));
                         }
 
@@ -171,7 +181,7 @@ pub mod parser {
                     if self.if_end_stack == 0 {
                         return Err(format!(
                             "{}:{}:{}: Error parsing {:?}: {:?} without matching IF",
-                            self.source, tok.row, tok.col, tok.tok_type, tok.tok_type
+                            self.source_file, tok.row, tok.col, tok.tok_type, tok.tok_type
                         ));
                     }
                     self.if_end_stack -= 1;
@@ -189,7 +199,7 @@ pub mod parser {
                     if self.loop_end_stack == 0 {
                         return Err(format!(
                             "{}:{}:{}: Error parsing {:?}: {:?} without matching WHILE",
-                            self.source, tok.row, tok.col, tok.tok_type, tok.tok_type
+                            self.source_file, tok.row, tok.col, tok.tok_type, tok.tok_type
                         ));
                     }
                     self.loop_end_stack -= 1;
@@ -199,9 +209,32 @@ pub mod parser {
             Ok(new_tok)
         }
 
+        fn parse_matched_token(&mut self, tok: &Token, tok_type: TokenType) -> Result<u32, String> {
+            let pos = self.pos;
+            let peek = self.peek;
+            while self.tokens[self.pos].tok_type != tok_type {
+                self.advance_token();
+                if self.tokens[self.pos].tok_type == TokenType::EOF {
+                    return Err(format!(
+                        "{}:{}:{}: Error parsing {:?}: {:?} without closing {:?}",
+                        self.source_file, tok.row, tok.col, tok.tok_type, tok.tok_type, tok_type
+                    ));
+                }
+            }
+            self.pos = pos;
+            self.peek = peek;
+            Ok(0)
+        }
+        fn parse_word(&mut self, tok: &Token) -> Result<u32, String> {
+            // let ident = match self.peek().tok_type {
+            //     TokenType::IDENT(s) => ,
+            //     _ => return Err(format!("Invalid word")),
+            // };
+            self.parse_matched_token(tok, TokenType::SEMICOLON)
+        }
+
         pub fn parse(&mut self) -> Result<u32, String> {
-            let tok = self.tokens[self.pos].clone();
-            while tok.tok_type != TokenType::EOF {
+            while self.tokens[self.pos].tok_type != TokenType::EOF {
                 let tok = &self.tokens[self.pos].clone();
                 let err = match &tok.tok_type {
                     TokenType::PLUS => self.stack_overflow(tok, 2, -1),
@@ -255,12 +288,29 @@ pub mod parser {
                         Ok(i) => Ok(i),
                         Err(e) => Err(e),
                     },
+                    TokenType::COLON => {
+                        self.parse_inside = false;
+                        match self.parse_word(tok) {
+                            Ok(_) => Ok(0),
+                            Err(e) => Err(e),
+                        }
+                    }
+                    TokenType::SEMICOLON => {
+                        self.parse_inside = true;
+                        Ok(0)
+                    }
+                    TokenType::LPAREN => match self.parse_matched_token(tok, TokenType::RPAREN) {
+                        Ok(_) => Ok(0),
+                        Err(e) => Err(e),
+                    },
+                    TokenType::RPAREN => Ok(0),
+                    TokenType::EM => Ok(0),
 
                     TokenType::EOF => {
                         if self.if_end_stack > 0 {
                             Err(format!(
                                 "{}:{}:{}: Unclosed IF",
-                                self.source, tok.row, tok.col
+                                self.source_file, tok.row, tok.col
                             ))
                         } else {
                             break;
