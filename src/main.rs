@@ -1,7 +1,8 @@
 fn main() -> Result<(), String> {
     let source_file = "main.rs".to_string();
-    let program = ": inc (a -- a) 1 + ;".to_string();
-    // let program = "1 1 + .".to_string();
+    // let program = ": count (a -- a) 1 > while over . swap 1 - swap end . ; 10 count".to_string();
+    let program =
+        ": fib (a -- a) 1 x := 1 > while over x * := swap 1 - swap end x . ; 10 fib".to_string();
 
     println!("{}: {:?}", source_file, program);
 
@@ -13,7 +14,7 @@ fn main() -> Result<(), String> {
     if let Err(e) = p.parse() {
         return Err(e);
     }
-    p.print();
+    // p.print();
     let mut c = rorth::compiler::compiler::new(source_file.clone(), p.tokens);
     if let Err(e) = c.compile() {
         return Err(e);

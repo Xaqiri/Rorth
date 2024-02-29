@@ -15,6 +15,7 @@ pub mod compiler {
         stack: i32,
         pos: usize,
         peek: usize,
+        words: HashSet<String>,
     }
 
     pub fn new(source: String, tokens: Vec<Token>) -> Compiler {
@@ -26,6 +27,7 @@ pub mod compiler {
             stack: 0,
             pos: 0,
             peek: 1,
+            words: HashSet::new(),
         }
     }
 
@@ -118,8 +120,7 @@ pub mod compiler {
             Ok(self.stack + 1)
         }
 
-        fn new_word_op(&mut self) -> Result<(), String> {
-            let mut stack = 0;
+        fn new_word_op(&mut self) -> Result<u32, String> {
             // : inc (a -- a) 1 + ;
             self.advance_token();
             let cur_token = self.tokens[self.pos].clone();
@@ -127,21 +128,37 @@ pub mod compiler {
                 TokenType::IDENT(s) => s,
                 _ => return Err(format!("New word error: Invalid name")),
             };
+            self.words.insert(func_name.clone());
             if self.peek().tok_type == TokenType::LPAREN {
                 self.advance_token()
             }
-            let mut arg_list: Vec<&str> = vec![];
-            let cur_token = self.tokens[self.pos].clone();
+            let mut arg_list: Vec<String> = vec![];
+            self.advance_token();
+            let mut cur_token = self.tokens[self.pos].clone();
             while cur_token.tok_type != TokenType::EM {
-                let arg = match &cur_token.tok_type {
+                let arg = match cur_token.tok_type {
                     TokenType::IDENT(s) => s,
-                    _ => return Err(format!("New word error: Invalid name")),
+                    _ => return Err(format!("New word error: Found {:?}", cur_token.tok_type)),
                 };
                 arg_list.push(arg);
+                self.stack += 1;
+                self.advance_token();
+                cur_token = self.tokens[self.pos].clone();
             }
-            let s = format!("function d ${}(d %{}) {{\n", func_name, arg_list[0]);
+            while cur_token.tok_type != TokenType::RPAREN {
+                self.advance_token();
+                cur_token = self.tokens[self.pos].clone();
+            }
+            self.advance_token();
+
+            let mut s = format!("function d ${}(d %n{}) {{\n@start\n", func_name, self.stack);
             self.file.write(s.as_bytes()).unwrap();
-            Ok(())
+            let res = self.parse_function_body(TokenType::SEMICOLON);
+
+            self.stack = 0;
+            s = format!("@end\n\tret %n{}\n}}\n", self.stack + 1);
+            self.file.write(s.as_bytes()).unwrap();
+            res
         }
 
         fn advance_token(&mut self) {
@@ -153,15 +170,12 @@ pub mod compiler {
             &self.tokens[self.peek]
         }
 
-        pub fn compile(&mut self) -> Result<u32, String> {
+        fn parse_function_body(&mut self, end: TokenType) -> Result<u32, String> {
             let mut cond_str = "".to_string();
             let mut var_stack: Vec<String> = vec![];
             let mut vars: HashSet<String> = HashSet::new();
-            self.file
-                .write(b"export function w $main() {\n@start\n")
-                .unwrap();
 
-            while self.tokens[self.pos].tok_type != TokenType::EOF {
+            while self.tokens[self.pos].tok_type != end {
                 let tok = self.tokens[self.pos].clone();
                 match &tok.tok_type {
                     TokenType::PLUS => self.stack = self.write_op("add"),
@@ -210,10 +224,16 @@ pub mod compiler {
                         }
                     }
                     TokenType::IDENT(ref s) => {
-                        match vars.insert(s.to_string()) {
-                            true => var_stack.push(s.to_string()),
-                            false => self.stack = self.push_op(&tok),
-                        };
+                        if self.words.contains(s) {
+                            let s =
+                                format!("\t%n{} =d call ${}(d %n{})\n", self.stack, s, self.stack);
+                            self.file.write(s.as_bytes()).unwrap();
+                        } else {
+                            match vars.insert(s.to_string()) {
+                                true => var_stack.push(s.to_string()),
+                                false => self.stack = self.push_op(&tok),
+                            };
+                        }
                     }
                     TokenType::IF(pos) => {
                         let s = format!(
@@ -279,11 +299,8 @@ pub mod compiler {
                             }
                         }
                     }
-                    TokenType::COLON => match self.new_word_op() {
-                        Ok(_) => (),
-                        Err(e) => return Err(e),
-                    },
-                    TokenType::SEMICOLON => (),
+                    TokenType::COLON => (),
+                    TokenType::SEMICOLON => self.stack = 0,
                     TokenType::LPAREN => (),
                     TokenType::RPAREN => (),
                     TokenType::EM => (),
@@ -292,6 +309,34 @@ pub mod compiler {
                 }
                 self.advance_token();
             }
+            Ok(0)
+        }
+
+        fn parse_words(&mut self) -> Result<u32, String> {
+            if self.tokens[self.pos].tok_type == TokenType::COLON {
+                let res = self.new_word_op();
+                if let Err(e) = res {
+                    return Err(e);
+                } else {
+                    self.advance_token();
+                    self.parse_words()
+                }
+            } else {
+                return Ok(0);
+            }
+        }
+
+        pub fn compile(&mut self) -> Result<u32, String> {
+            let res = self.parse_words();
+            if let Err(e) = res {
+                return Err(e);
+            }
+
+            self.file
+                .write(b"export function w $main() {\n@start\n")
+                .unwrap();
+
+            let res = self.parse_function_body(TokenType::EOF);
 
             self.file.write(b"@end\n\tret 0\n}\n").unwrap();
             self.file
@@ -303,6 +348,10 @@ pub mod compiler {
             self.file
                 .write(b"data $fmt_str = { b \"%s \", b 0 }\n")
                 .unwrap();
+
+            // for s in &self.words {
+            //     self.file.write(s.as_bytes()).unwrap();
+            // }
 
             // for i in string_heap {
             //     let s = format!("data $str_{} = {{ b \"{}\", b 0 }}\n", i, i);
@@ -318,10 +367,9 @@ pub mod compiler {
             io::stdout().write_all(&output).unwrap();
             let errout = cmd.stderr;
             io::stdout().write_all(&errout).unwrap();
-
             println!();
 
-            Ok(0)
+            res
         }
     }
 }

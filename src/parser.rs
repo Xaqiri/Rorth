@@ -143,7 +143,7 @@ pub mod parser {
             let err = self.stack_overflow(tok, req, change);
             match err {
                 Ok(i) => {
-                    if i < 2 {
+                    if i < 1 {
                         panic!(
                             "{}",
                             format!(
