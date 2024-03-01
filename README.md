@@ -39,9 +39,9 @@ end x .
 1 > while 
   over x * := 
   swap 1 - swap 
-end x . ; 
+end x ; 
 
-10 fib \ 3628800
-5 fib \ 120
+10 fib . \ 3628800
+5 fib . \ 120
 ```
 
