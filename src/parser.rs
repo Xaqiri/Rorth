@@ -52,9 +52,9 @@ pub mod parser {
             self.peek += 1;
         }
 
-        fn peek(&self) -> &Token {
-            &self.tokens[self.peek]
-        }
+        // fn peek(&self) -> &Token {
+        //     &self.tokens[self.peek]
+        // }
 
         fn stack_overflow(&mut self, tok: &Token, req: i32, change: i32) -> Result<i32, String> {
             if self.parse_inside {
@@ -225,11 +225,8 @@ pub mod parser {
             self.peek = peek;
             Ok(0)
         }
+
         fn parse_word(&mut self, tok: &Token) -> Result<u32, String> {
-            // let ident = match self.peek().tok_type {
-            //     TokenType::IDENT(s) => ,
-            //     _ => return Err(format!("Invalid word")),
-            // };
             self.parse_matched_token(tok, TokenType::SEMICOLON)
         }
 
@@ -250,6 +247,7 @@ pub mod parser {
                     TokenType::SWAP => self.stack_overflow(tok, 2, 0),
                     TokenType::DROP => self.stack_overflow(tok, 1, -1),
                     TokenType::NIP => self.stack_overflow(tok, 2, -1),
+                    TokenType::ROT => self.stack_overflow(tok, 3, 0),
                     TokenType::OVER => self.stack_overflow(tok, 2, 1),
                     TokenType::DUP => self.stack_overflow(tok, 1, 1),
                     TokenType::PERIOD => self.stack_overflow(tok, 1, -1),

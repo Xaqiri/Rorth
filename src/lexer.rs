@@ -32,6 +32,7 @@ pub mod lexer {
         DROP,
         DUP,
         NIP,
+        ROT,
         QMARK,
         COLON,
         SEMICOLON,
@@ -79,6 +80,7 @@ pub mod lexer {
         l.ident.insert("peek".to_string(), TokenType::PEEK);
         l.ident.insert("drop".to_string(), TokenType::DROP);
         l.ident.insert("nip".to_string(), TokenType::NIP);
+        l.ident.insert("rot".to_string(), TokenType::ROT);
         l.ident.insert("dup".to_string(), TokenType::DUP);
         l.ident.insert("set".to_string(), TokenType::SET);
         l.ident.insert("if".to_string(), TokenType::IF(0));
@@ -144,6 +146,7 @@ pub mod lexer {
                     TokenType::DROP => self.tokens.push(self.make_token(TokenType::DROP)),
                     TokenType::DUP => self.tokens.push(self.make_token(TokenType::DUP)),
                     TokenType::NIP => self.tokens.push(self.make_token(TokenType::NIP)),
+                    TokenType::ROT => self.tokens.push(self.make_token(TokenType::ROT)),
                     TokenType::IF(_) => self.tokens.push(self.make_token(TokenType::IF(0))),
                     TokenType::ELSE(_) => self.tokens.push(self.make_token(TokenType::ELSE(0))),
                     TokenType::WHILE(_, _) => self
