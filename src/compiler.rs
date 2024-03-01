@@ -120,6 +120,20 @@ pub mod compiler {
             Ok(self.stack + 1)
         }
 
+        fn dbg_op(&mut self) {
+            println!("Stack size: {}", self.stack);
+            let s = format!("\tcall $printf(l $fmt_str, ..., l $dbg)\n",);
+            self.file.write(s.as_bytes()).unwrap();
+            for i in 1..=self.stack {
+                let s = format!("\tcall $printf(l $fmt_dec, ..., d %n{})\n", i);
+                self.file.write(s.as_bytes()).unwrap();
+                // let s = format!("\tcall $puts(w 0)\n");
+                // self.file.write(s.as_bytes()).unwrap();
+            }
+            let s = format!("\tcall $puts(w 0)\n");
+            self.file.write(s.as_bytes()).unwrap();
+        }
+
         fn rot_op(&mut self) {
             let a = self.stack;
             let b = self.stack - 1;
@@ -218,6 +232,7 @@ pub mod compiler {
                         self.stack -= 1;
                     }
                     TokenType::ROT => self.rot_op(),
+                    TokenType::DBG => self.dbg_op(),
                     TokenType::OVER => match self.over_op() {
                         Ok(s) => self.stack = s,
                         Err(e) => return Err(e),
@@ -388,6 +403,11 @@ pub mod compiler {
             self.file
                 .write(b"data $fmt_str = { b \"%s \", b 0 }\n")
                 .unwrap();
+
+            self.file
+                .write(b"data $dbg = { b \"Debug: \", b 0 }\n")
+                .unwrap();
+            self.file.write(b"data $nl = { b \"\n\", b 0 }\n").unwrap();
 
             let cmd = Command::new("sh")
         .arg("-c")
