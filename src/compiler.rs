@@ -263,6 +263,11 @@ pub mod compiler {
                     TokenType::IDENT(ref s) => {
                         if self.words.contains_key(s) {
                             let mut arg_str = format!("");
+                            if self.stack < self.words[s] {
+                                let row = self.tokens[self.pos].row;
+                                let col = self.tokens[self.pos].col;
+                                return Err(format!("{}:{}:{}: Invalid use of word {:?}; not enough values on the stack", self.source, row, col, s));
+                            }
                             for i in 1..=self.words[s] {
                                 if i < self.stack {
                                     arg_str.push_str(&format!("d %n{}, ", i))

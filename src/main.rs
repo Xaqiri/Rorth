@@ -1,7 +1,15 @@
 fn main() -> Result<(), String> {
     let source_file = "main.rs".to_string();
-    let program =
-        ": fib (a -- a) 1 x := 1 > while over x * := swap 1 - swap end x ;  10 fib .".to_string();
+    // let program =
+    //     ": fib (a -- a) 1 x := 1 > while over x * := swap 1 - swap end x ;  10 fib .".to_string();
+
+    let program = "
+: double ( a -- ) dup + ;
+: dec ( a b -- b a ) swap 1 - swap dbg ;
+: source ( -- ) 2 4 dec ;
+
+source"
+        .to_string();
 
     println!("{}: {:?}", source_file, program);
 
