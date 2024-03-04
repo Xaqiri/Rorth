@@ -169,8 +169,15 @@ pub mod compiler {
                 self.advance_token();
                 cur_token = self.tokens[self.pos].clone();
             }
+
+            self.advance_token();
+            cur_token = self.tokens[self.pos].clone();
             while cur_token.tok_type != TokenType::RPAREN {
                 self.advance_token();
+                let _ = match cur_token.tok_type {
+                    TokenType::IDENT(s) => s,
+                    _ => return Err(format!("New word error: Found {:?}", cur_token.tok_type)),
+                };
                 cur_token = self.tokens[self.pos].clone();
             }
             self.advance_token();

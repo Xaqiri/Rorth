@@ -67,8 +67,8 @@ pub mod lexer {
     pub fn new(code: String) -> Lexer {
         let mut l = Lexer {
             pos: 0,
-            col: 0,
-            row: 0,
+            col: 1,
+            row: 1,
             peek: 1,
             char: ' ',
             source: code.chars().collect(),
@@ -117,6 +117,10 @@ pub mod lexer {
         pub fn skip_space(&mut self) {
             if self.char == '\0' {
                 return;
+            }
+            if self.source[self.pos] == '\n' {
+                self.row += 1;
+                self.col = 1;
             }
             if self.source[self.pos].is_whitespace() {
                 self.advance_token();

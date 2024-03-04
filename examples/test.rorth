@@ -1,0 +1,5 @@
+: double ( a -- a ) dup + ;
+: dec ( a b -- b a ) swap 1 - swap ;
+: source ( -- ) 2 4 dec . ;
+
+source
