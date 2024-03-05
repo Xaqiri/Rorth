@@ -34,14 +34,14 @@ end x .
 
 ### Custom Words
 ```forth
-: fib (a -- a) 
+: fact (a -- a) 
 1 x := 
 1 > while 
   over x * := 
   swap 1 - swap 
 end x ; 
 
-10 fib . \ 3628800
-5 fib . \ 120
+10 fact . \ 3628800
+5 fact . \ 120
 ```
 
