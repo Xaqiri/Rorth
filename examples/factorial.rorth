@@ -1,0 +1,10 @@
+: fact (a -- a)
+	1 x :=
+	1 > while
+  	over x * :=
+	  swap 1 - swap
+	end
+	x
+;
+
+10 fact .

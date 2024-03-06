@@ -96,6 +96,11 @@ pub mod compiler {
         }
 
         fn print_op(&mut self, tok: &Token) -> Result<i32, String> {
+            if tok.tok_type == TokenType::PRINT {
+                let s = format!("\tcall $printf(l $nl, ..., d %s_main_{})\n", self.stack);
+                self.file.write(s.as_bytes()).unwrap();
+                return Ok(self.stack);
+            }
             if self.stack == 0 {
                 return Err(format!(
                     "{}:{}:{}: Nothing on the stack to print",
@@ -251,6 +256,10 @@ pub mod compiler {
                     Err(e) => return Err(e),
                 },
                 TokenType::DUP => match self.dup_op(&tok) {
+                    Ok(s) => self.stack = s,
+                    Err(e) => return Err(e),
+                },
+                TokenType::PRINT => match self.print_op(&tok) {
                     Ok(s) => self.stack = s,
                     Err(e) => return Err(e),
                 },
