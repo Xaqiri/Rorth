@@ -256,7 +256,7 @@ pub mod compiler {
                 },
                 TokenType::PRINT => {
                     if tok.tok_type == TokenType::PRINT {
-                        let s = format!("\tcall $printf(l $nl, ..., d %s_main_{})\n", self.stack);
+                        let s = format!("\tcall $printf(l $nl)\n");
                         self.file.write(s.as_bytes()).unwrap();
                     }
                 }
@@ -276,7 +276,10 @@ pub mod compiler {
                             Err(e) => return Err(e),
                         };
                     } else {
-                        return Err("No variable to assign to".to_string());
+                        return Err(format!(
+                            "{}:{}:{}: No variable to assign to",
+                            self.source, tok.row, tok.col
+                        ));
                     }
                 }
                 TokenType::IDENT(ref s) => {
@@ -289,7 +292,10 @@ pub mod compiler {
                         match self.vars.insert(s.to_string()) {
                             true => {
                                 if self.peek(peek_target).tok_type != TokenType::SET {
-                                    return Err(format!("Invalid: {:?} undefined", tok));
+                                    return Err(format!(
+                                        "{}:{}:{}: Invalid: {:?} undefined",
+                                        self.source, tok.row, tok.col, tok
+                                    ));
                                 }
                                 self.var_stack.push(format!("s_{}", s))
                             }
@@ -371,7 +377,12 @@ pub mod compiler {
                         }
                     }
                 }
-                TokenType::COLON => (),
+                TokenType::COLON => {
+                    let res = self.new_word_op();
+                    if let Err(e) = res {
+                        return Err(e);
+                    }
+                }
                 TokenType::SEMICOLON => self.stack = 0,
                 TokenType::LPAREN => (),
                 TokenType::RPAREN => (),
@@ -412,26 +423,7 @@ pub mod compiler {
             Ok(0)
         }
 
-        fn parse_words(&mut self) -> Result<u32, String> {
-            if self.tokens[self.pos].tok_type == TokenType::COLON {
-                let res = self.new_word_op();
-                if let Err(e) = res {
-                    return Err(e);
-                } else {
-                    self.advance_token();
-                    self.parse_words()
-                }
-            } else {
-                return Ok(0);
-            }
-        }
-
         pub fn compile(&mut self) -> Result<u32, String> {
-            let res = self.parse_words();
-            if let Err(e) = res {
-                return Err(e);
-            }
-
             self.file
                 .write(b"export function w $main() {\n@start\n")
                 .unwrap();
