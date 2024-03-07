@@ -15,3 +15,6 @@ end .
 10 dec
 print
 10 inc
+print
+10 inc
+

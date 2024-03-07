@@ -299,7 +299,11 @@ pub mod compiler {
                                 }
                                 self.var_stack.push(format!("s_{}", s))
                             }
-                            false => self.stack = self.push_op(&tok),
+                            false => {
+                                if self.peek(peek_target).tok_type != TokenType::SET {
+                                    self.stack = self.push_op(&tok)
+                                }
+                            }
                         };
                     }
                 }

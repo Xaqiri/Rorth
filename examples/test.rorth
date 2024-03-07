@@ -1,8 +1,11 @@
 : loop 0 > while over . swap 1 - swap end ;
 : test 1 1 = if 1 . else 0 . end ;
+: x 5 ;
 
-15 loop
-print
-\ 10 loop
-test
-test
+1 x :=
+5 y :=
+
+1 5 < while
+  x .
+  swap 1 + swap
+end
