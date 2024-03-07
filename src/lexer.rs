@@ -61,11 +61,12 @@ pub mod lexer {
         peek: usize,
         char: char,
         source: Vec<char>,
+        source_file: String,
         ident: HashMap<String, TokenType>,
         pub tokens: Vec<Token>,
     }
 
-    pub fn new(code: String) -> Lexer {
+    pub fn new(source_file: String, code: String) -> Lexer {
         let mut l = Lexer {
             pos: 0,
             col: 1,
@@ -73,6 +74,7 @@ pub mod lexer {
             peek: 1,
             char: ' ',
             source: code.chars().collect(),
+            source_file,
             ident: HashMap::new(),
             tokens: vec![],
         };
@@ -109,7 +111,12 @@ pub mod lexer {
             self.pos += 1;
             self.col += 1;
             self.peek += 1;
+            if self.char == '\n' {
+                self.row += 1;
+                self.col = 1;
+            }
             if self.pos >= self.source.len() {
+                self.char = '\0';
                 return;
             } else {
                 self.char = self.source[self.pos];
@@ -119,10 +126,6 @@ pub mod lexer {
         pub fn skip_space(&mut self) {
             if self.char == '\0' {
                 return;
-            }
-            if self.source[self.pos] == '\n' {
-                self.row += 1;
-                self.col = 1;
             }
             if self.source[self.pos].is_whitespace() {
                 self.advance_token();
@@ -212,8 +215,29 @@ pub mod lexer {
             self.source[self.peek]
         }
 
+        fn parse_comment(&mut self) {
+            let row = self.row;
+            let col = self.col;
+            if self.char == '(' {
+                while self.char != ')' {
+                    if self.char == '\0' {
+                        panic!(
+                            "{}",
+                            format!("{}:{}:{}: ( without closing )", self.source_file, row, col)
+                        );
+                    }
+
+                    self.advance_token();
+                }
+            } else if self.char == '\\' {
+                while self.char != '\n' {
+                    self.advance_token();
+                }
+            }
+        }
+
         pub fn lex(&mut self) -> Result<Vec<Token>, String> {
-            while self.pos < self.source.len() - 1 {
+            while self.pos < self.source.len() {
                 self.skip_space();
                 match self.char {
                     '+' => self.tokens.push(self.make_token(TokenType::PLUS)),
@@ -226,7 +250,7 @@ pub mod lexer {
                     '>' => self.tokens.push(self.make_token(TokenType::GT)),
                     '?' => self.tokens.push(self.make_token(TokenType::QMARK)),
                     ';' => self.tokens.push(self.make_token(TokenType::SEMICOLON)),
-                    '(' => self.tokens.push(self.make_token(TokenType::LPAREN)),
+                    '(' | '\\' => self.parse_comment(),
                     ')' => self.tokens.push(self.make_token(TokenType::RPAREN)),
                     '-' => {
                         if self.peek() == '-' {
@@ -244,6 +268,7 @@ pub mod lexer {
                             self.tokens.push(self.make_token(TokenType::COLON));
                         }
                     }
+                    '\0' => self.tokens.push(self.make_token(TokenType::EOF)),
                     _ => {
                         if self.char.is_digit(10) {
                             self.get_number();
@@ -251,15 +276,14 @@ pub mod lexer {
                             self.get_ident();
                         } else {
                             return Err(format!(
-                                "main.rs:{}:{}: Error lexing character: {}",
-                                self.col, self.row, self.char
+                                "{}:{}:{}: Error lexing character: {}",
+                                self.source_file, self.row, self.col, self.char
                             ));
                         }
                     }
                 }
                 self.advance_token();
             }
-            self.tokens.push(self.make_token(TokenType::EOF));
             Ok(self.tokens.to_vec())
         }
     }

@@ -1,4 +1,5 @@
-: fact (a -- a)
+\ calculates the factorial of a number a
+: fact ( a -- a! )
 	1 x :=
 	1 > while
   	over x * :=

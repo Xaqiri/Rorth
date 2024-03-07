@@ -1,0 +1,3 @@
+\ word syntax can be used to define constants 
+: x ( a -- a )  10 ;
+x .  

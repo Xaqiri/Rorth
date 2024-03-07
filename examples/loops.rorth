@@ -1,12 +1,12 @@
-: dec (a -- )
+: dec ( a -- )
 1 > while
   over . 
   swap 1 - swap
 end .
 ;
 
-: inc (a -- )
-1 over < while
+: inc ( a -- )
+1 over < while 
   over . 
   swap 1 + swap
 end .

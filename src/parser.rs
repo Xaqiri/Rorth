@@ -52,10 +52,6 @@ pub mod parser {
             self.peek += 1;
         }
 
-        // fn peek(&self) -> &Token {
-        //     &self.tokens[self.peek]
-        // }
-
         fn stack_overflow(&mut self, tok: &Token, req: i32, change: i32) -> Result<i32, String> {
             if self.parse_inside {
                 if self.stack < req {
@@ -303,7 +299,10 @@ pub mod parser {
                         Ok(_) => Ok(0),
                         Err(e) => Err(e),
                     },
-                    TokenType::RPAREN => Ok(0),
+                    TokenType::RPAREN => Err(format!(
+                        "{}:{}:{}: Hanging ); ) should only be used to close a matching (",
+                        self.source_file, tok.row, tok.col
+                    )),
                     TokenType::EM => Ok(0),
 
                     TokenType::EOF => {
