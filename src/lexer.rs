@@ -49,8 +49,8 @@ pub mod lexer {
 
     #[derive(Debug, Clone)]
     pub struct Token {
-        pub col: usize,
         pub row: usize,
+        pub col: usize,
         pub tok_type: TokenType,
     }
     impl Token {
@@ -246,7 +246,7 @@ pub mod lexer {
         }
 
         pub fn lex(&mut self) -> Result<Vec<Token>, String> {
-            while self.pos < self.source.len() {
+            while self.pos <= self.source.len() {
                 self.skip_space();
                 match self.char {
                     '+' => self.tokens.push(self.make_token(TokenType::PLUS)),

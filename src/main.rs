@@ -16,7 +16,6 @@ fn main() -> Result<(), String> {
     let source_file = file_path[file_path.len() - 1];
 
     let program = fs::read_to_string(args[1].clone()).unwrap();
-    // println!("{:?}: {:?}", source_file, program);
 
     let mut l = rorth::lexer::lexer::new(source_file.to_string(), program);
     if let Err(e) = l.lex() {

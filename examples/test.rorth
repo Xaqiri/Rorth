@@ -1,3 +1,4 @@
+( comment )
 : loop 0 > while over . swap 1 - swap end ;
 : fib over over + ;
 : word 6 x := x dup ;
@@ -8,4 +9,3 @@
 x y + 4 * z := x y z dbg
 
 word 3 * swap drop x := x dbg
-
