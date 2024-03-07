@@ -53,6 +53,15 @@ pub mod lexer {
         pub row: usize,
         pub tok_type: TokenType,
     }
+    impl Token {
+        pub fn new() -> Token {
+            Token {
+                col: 0,
+                row: 0,
+                tok_type: TokenType::EOF,
+            }
+        }
+    }
 
     pub struct Lexer {
         pos: usize,

@@ -8,3 +8,4 @@
 x y + 4 * z := x y z dbg
 
 word 3 * swap drop x := x dbg
+

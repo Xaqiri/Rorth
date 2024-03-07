@@ -51,8 +51,11 @@ pub mod compiler {
     }
 
     impl Compiler {
-        fn format_err(&self, tok: &Token, message: String) -> String {
-            format!("{}:{}:{}: {}", self.source, tok.row, tok.col, message)
+        fn format_err(&self, tok: &Token, message: String) -> Result<i32, String> {
+            Err(format!(
+                "{}:{}:{}: {}",
+                self.source, tok.row, tok.col, message
+            ))
         }
 
         fn write_op(&mut self, op: &str) -> i32 {
@@ -103,10 +106,10 @@ pub mod compiler {
 
         fn set_op(&mut self, var_name: String, tok: Token) -> Result<i32, String> {
             if self.stack < 1 {
-                return Err(self.format_err(
+                return self.format_err(
                     &tok,
                     format!("Invalid {:?}: Not enough values on the stack", tok),
-                ));
+                );
             }
 
             let s: String = format!("\t%{} =d add 0, %s_main_{}\n", var_name, self.stack);
@@ -116,10 +119,7 @@ pub mod compiler {
 
         fn print_op(&mut self, tok: &Token) -> Result<i32, String> {
             if self.stack == 0 {
-                return Err(format!(
-                    "{}:{}:{}: Nothing on the stack to print",
-                    self.source, tok.row, tok.col
-                ));
+                return self.format_err(&tok, "Nothing on the stack to print".to_string());
             }
             let s = format!(
                 "\tcall $printf(l $fmt_dec, ..., d %s_main_{})\n",
@@ -131,10 +131,10 @@ pub mod compiler {
 
         fn dup_op(&mut self, tok: &Token) -> Result<i32, String> {
             match self.stack {
-                0 => Err(format!(
-                    "{}:{}:{}: Invalid 'dup': Nothing on the stack to print",
-                    self.source, tok.row, tok.col
-                )),
+                0 => self.format_err(
+                    &tok,
+                    "Invalid 'dup': Nothing on the stack to print".to_string(),
+                ),
                 _ => {
                     let s = format!(
                         "\t%s_main_{} =d add 0, %s_main_{}\n",
@@ -190,12 +190,15 @@ pub mod compiler {
             self.output_file.write(s.as_bytes()).unwrap();
         }
 
-        fn new_word_op(&mut self) -> Result<u32, String> {
+        fn new_word_op(&mut self) -> Result<i32, String> {
             self.advance_token();
             let cur_token = self.tokens[self.pos].clone();
             let word_name = match &cur_token.tok_type {
                 TokenType::IDENT(s) => s,
-                _ => return Err(format!("New word error: Invalid name")),
+                _ => {
+                    return self
+                        .format_err(&Token::new(), "New word error: Invalid name".to_string())
+                }
             };
             self.words.insert(word_name.clone(), vec![]);
             self.cur_word = word_name.clone();
@@ -243,7 +246,7 @@ pub mod compiler {
             tok: Token,
             cond_str: &mut String,
             peek_target: Peek,
-        ) -> Result<u32, String> {
+        ) -> Result<i32, String> {
             match &tok.tok_type {
                 TokenType::PLUS => self.stack = self.write_op("add"),
                 TokenType::MINUS => self.stack = self.write_op("sub"),
@@ -295,19 +298,16 @@ pub mod compiler {
                             Err(e) => return Err(e),
                         };
                     } else {
-                        return Err(format!(
-                            "{}:{}:{}: No variable to assign to",
-                            self.source, tok.row, tok.col
-                        ));
+                        return self.format_err(&tok, "No variable to assign to".to_string());
                     }
                 }
                 TokenType::IDENT(ref s) => {
                     if self.words.contains_key(s) {
                         if self.peek(peek_target).tok_type == TokenType::SET {
-                            return Err(format!(
-                                "{}:{}:{}: Invalid: {:?} is a word, not a variable",
-                                self.source, tok.row, tok.col, tok
-                            ));
+                            return self.format_err(
+                                &tok,
+                                format!("Invalid assignment: {:?} is a word, not a variable", tok),
+                            );
                         }
 
                         let res = self.handle_word_call(s.to_string());
@@ -318,10 +318,8 @@ pub mod compiler {
                         match self.vars.insert(s.to_string()) {
                             true => {
                                 if self.peek(peek_target).tok_type != TokenType::SET {
-                                    return Err(format!(
-                                        "{}:{}:{}: Invalid: {:?} undefined",
-                                        self.source, tok.row, tok.col, tok
-                                    ));
+                                    return self
+                                        .format_err(&tok, format!("Invalid: {:?} undefined", tok));
                                 }
                                 self.var_stack.push(format!("s_{}", s))
                             }
@@ -370,7 +368,12 @@ pub mod compiler {
                         TokenType::LT => "lt",
                         TokenType::GTE => "ge",
                         TokenType::GT => "gt",
-                        _ => return Err(format!("compiler: Error handling comparison: {:?}", tok)),
+                        _ => {
+                            return self.format_err(
+                                &tok,
+                                format!("compiler: Error handling comparison: {:?}", tok),
+                            )
+                        }
                     };
                     let s = format!(
                         "\t%b =w c{}d %c_{}_{}, %c_{}_{}\n",
@@ -421,13 +424,13 @@ pub mod compiler {
                 TokenType::RPAREN => (),
                 TokenType::EM => (),
                 TokenType::EOF => (),
-                _ => return Err(format!("compiler: Unhandled token: {:?}", tok)),
+                _ => return self.format_err(&tok, format!("compiler: Unhandled token: {:?}", tok)),
             }
 
             Ok(0)
         }
 
-        fn handle_word_call(&mut self, word: String) -> Result<u32, String> {
+        fn handle_word_call(&mut self, word: String) -> Result<i32, String> {
             let mut cond_str = "".to_string();
             let word_body = self.words.get(&word).unwrap().clone();
             for i in 0..word_body.len() {
@@ -443,7 +446,7 @@ pub mod compiler {
             Ok(0)
         }
 
-        fn parse_function_body(&mut self, end: TokenType) -> Result<u32, String> {
+        fn parse_function_body(&mut self, end: TokenType) -> Result<i32, String> {
             let mut cond_str = "".to_string();
             while self.tokens[self.pos].tok_type != end {
                 let tok = self.tokens[self.pos].clone();
@@ -456,7 +459,7 @@ pub mod compiler {
             Ok(0)
         }
 
-        pub fn compile(&mut self) -> Result<u32, String> {
+        pub fn compile(&mut self) -> Result<i32, String> {
             self.output_file
                 .write(b"export function w $main() {\n@start\n")
                 .unwrap();
