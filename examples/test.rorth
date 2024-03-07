@@ -1,11 +1,10 @@
 : loop 0 > while over . swap 1 - swap end ;
-: test 1 1 = if 1 . else 0 . end ;
-: x 5 ;
+: fib over over + ;
+: word 6 x := x dup ;
 
 1 x :=
-5 y :=
+2 y :=
 
-1 5 < while
-  x .
-  swap 1 + swap
-end
+x y + 4 * z := x y z dbg
+
+word 3 * swap drop x := x dbg

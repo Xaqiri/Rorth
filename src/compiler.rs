@@ -14,15 +14,23 @@ pub mod compiler {
     }
 
     pub struct Compiler {
+        // Name of the source file
         source: String,
         tokens: Vec<Token>,
-        file: File,
+        output_file: File,
+        // Number representing the size of the stack
         stack: i32,
         pos: usize,
         peek: usize,
+        // HashMap in the form "word name": [list of operations associated with the word]
         words: HashMap<String, Vec<Token>>,
         var_stack: Vec<String>,
+        // Set containing the names of all variables declared in the program
         vars: HashSet<String>,
+        // Name of the word the compiler is currently looking at; prepended to variable names in the
+        // generated qbe code to allow variable scoping
+        // : word 1 x := ; => x becomes %s_word_x
+        // 1 x := => x becomes %s_x
         cur_word: String,
     }
 
@@ -31,7 +39,7 @@ pub mod compiler {
         Compiler {
             source,
             tokens,
-            file,
+            output_file: file,
             stack: 0,
             pos: 0,
             peek: 1,
@@ -43,6 +51,10 @@ pub mod compiler {
     }
 
     impl Compiler {
+        fn format_err(&self, tok: &Token, message: String) -> String {
+            format!("{}:{}:{}: {}", self.source, tok.row, tok.col, message)
+        }
+
         fn write_op(&mut self, op: &str) -> i32 {
             let s = format!(
                 "\t%s_main_{} =d {} %s_main_{}, %s_main_{}\n",
@@ -51,7 +63,7 @@ pub mod compiler {
                 self.stack - 1,
                 self.stack
             );
-            self.file.write(s.as_bytes()).unwrap();
+            self.output_file.write(s.as_bytes()).unwrap();
             self.stack - 1
         }
 
@@ -63,7 +75,7 @@ pub mod compiler {
                 TokenType::IDENT(var) => s = format!("\t%s_main_{} =d add 0, %s_{}\n", stack, var),
                 _ => panic!("Invalid push target: {:?}", value),
             }
-            self.file.write(s.as_bytes()).unwrap();
+            self.output_file.write(s.as_bytes()).unwrap();
             stack
         }
 
@@ -85,13 +97,20 @@ pub mod compiler {
                 stack - 1,
                 stack,
             );
-            self.file.write(s.as_bytes()).unwrap();
+            self.output_file.write(s.as_bytes()).unwrap();
             (stack, s)
         }
 
-        fn set_op(&mut self, var_name: String) -> Result<i32, String> {
+        fn set_op(&mut self, var_name: String, tok: Token) -> Result<i32, String> {
+            if self.stack < 1 {
+                return Err(self.format_err(
+                    &tok,
+                    format!("Invalid {:?}: Not enough values on the stack", tok),
+                ));
+            }
+
             let s: String = format!("\t%{} =d add 0, %s_main_{}\n", var_name, self.stack);
-            self.file.write(s.as_bytes()).unwrap();
+            self.output_file.write(s.as_bytes()).unwrap();
             Ok(self.stack - 1)
         }
 
@@ -106,7 +125,7 @@ pub mod compiler {
                 "\tcall $printf(l $fmt_dec, ..., d %s_main_{})\n",
                 self.stack
             );
-            self.file.write(s.as_bytes()).unwrap();
+            self.output_file.write(s.as_bytes()).unwrap();
             Ok(self.stack - 1)
         }
 
@@ -122,7 +141,7 @@ pub mod compiler {
                         self.stack + 1,
                         self.stack
                     );
-                    self.file.write(s.as_bytes()).unwrap();
+                    self.output_file.write(s.as_bytes()).unwrap();
                     Ok(self.stack + 1)
                 }
             }
@@ -135,7 +154,7 @@ pub mod compiler {
                 "\t%t =d add 0, %s_main_{}\n\t%s_main_{} =d add 0, %s_main_{}\n\t%s_main_{} =d add 0, %t\n",
                 a, a, b, b
             );
-            self.file.write(s.as_bytes()).unwrap();
+            self.output_file.write(s.as_bytes()).unwrap();
         }
 
         fn over_op(&mut self) -> Result<i32, String> {
@@ -144,20 +163,20 @@ pub mod compiler {
                 self.stack + 1,
                 self.stack - 1
             );
-            self.file.write(s.as_bytes()).unwrap();
+            self.output_file.write(s.as_bytes()).unwrap();
             Ok(self.stack + 1)
         }
 
         fn dbg_op(&mut self) {
             println!("Stack size: {}", self.stack);
             let s = format!("\tcall $printf(l $fmt_str, ..., l $dbg)\n",);
-            self.file.write(s.as_bytes()).unwrap();
+            self.output_file.write(s.as_bytes()).unwrap();
             for i in 1..=self.stack {
                 let s = format!("\tcall $printf(l $fmt_dec, ..., d %s_main_{})\n", i);
-                self.file.write(s.as_bytes()).unwrap();
+                self.output_file.write(s.as_bytes()).unwrap();
             }
             let s = format!("\tcall $puts(w 0)\n");
-            self.file.write(s.as_bytes()).unwrap();
+            self.output_file.write(s.as_bytes()).unwrap();
         }
 
         fn rot_op(&mut self) {
@@ -168,7 +187,7 @@ pub mod compiler {
                 "\t%t =d add 0, %s_main_{}\n\t%s_main_{} =d add 0, %s_main_{}\n\t%s_main_{} =d add 0, %s_main_{}\n\t%s_main_{} =d add 0, %t\n",
                 c, c, b, b, a, a
             );
-            self.file.write(s.as_bytes()).unwrap();
+            self.output_file.write(s.as_bytes()).unwrap();
         }
 
         fn new_word_op(&mut self) -> Result<u32, String> {
@@ -257,7 +276,7 @@ pub mod compiler {
                 TokenType::PRINT => {
                     if tok.tok_type == TokenType::PRINT {
                         let s = format!("\tcall $printf(l $nl)\n");
-                        self.file.write(s.as_bytes()).unwrap();
+                        self.output_file.write(s.as_bytes()).unwrap();
                     }
                 }
                 TokenType::PERIOD => match self.print_op(&tok) {
@@ -271,7 +290,7 @@ pub mod compiler {
                 TokenType::SET => {
                     let var = self.var_stack.last();
                     if let Some(v) = var {
-                        self.stack = match self.set_op(v.clone()) {
+                        self.stack = match self.set_op(v.clone(), tok) {
                             Ok(i) => i,
                             Err(e) => return Err(e),
                         };
@@ -284,6 +303,13 @@ pub mod compiler {
                 }
                 TokenType::IDENT(ref s) => {
                     if self.words.contains_key(s) {
+                        if self.peek(peek_target).tok_type == TokenType::SET {
+                            return Err(format!(
+                                "{}:{}:{}: Invalid: {:?} is a word, not a variable",
+                                self.source, tok.row, tok.col, tok
+                            ));
+                        }
+
                         let res = self.handle_word_call(s.to_string());
                         if let Err(e) = res {
                             return Err(e);
@@ -301,8 +327,11 @@ pub mod compiler {
                             }
                             false => {
                                 if self.peek(peek_target).tok_type != TokenType::SET {
-                                    self.stack = self.push_op(&tok)
+                                    self.stack = self.push_op(&tok);
+                                    self.var_stack.pop();
                                 }
+
+                                self.var_stack.push(format!("s_{}", s))
                             }
                         };
                     }
@@ -312,11 +341,11 @@ pub mod compiler {
                         "\t%b =w dtosi %s_main_{}\n\tjnz %b, @if_{}, @else_{}\n@if_{}\n",
                         self.stack, pos, pos, pos
                     );
-                    self.file.write(s.as_bytes()).unwrap();
+                    self.output_file.write(s.as_bytes()).unwrap();
                 }
                 TokenType::ELSE(pos) => {
                     let s = format!("\tjmp @end_if_{}\n@else_{}\n", pos, pos);
-                    self.file.write(s.as_bytes()).unwrap();
+                    self.output_file.write(s.as_bytes()).unwrap();
                 }
                 TokenType::WHILE(op, pos) => {
                     self.stack -= 1;
@@ -326,14 +355,14 @@ pub mod compiler {
                         pos,
                         self.stack - 1
                     );
-                    self.file.write(s.as_bytes()).unwrap();
+                    self.output_file.write(s.as_bytes()).unwrap();
                     let s = format!(
                         "\t%c_{}_{} =d add 0, %s_main_{}\n",
                         pos,
                         pos + 1,
                         self.stack
                     );
-                    self.file.write(s.as_bytes()).unwrap();
+                    self.output_file.write(s.as_bytes()).unwrap();
                     let comp = match *op.to_owned() {
                         TokenType::EQUAL => "eq",
                         TokenType::NEQUAL => "ne",
@@ -351,12 +380,12 @@ pub mod compiler {
                         pos,
                         pos + 1
                     );
-                    self.file.write(s.as_bytes()).unwrap();
+                    self.output_file.write(s.as_bytes()).unwrap();
                     let s = format!(
                         "\tjnz %b, @loop_{}, @end_loop_{}\n@loop_{}\n",
                         pos, pos, pos
                     );
-                    self.file.write(s.as_bytes()).unwrap();
+                    self.output_file.write(s.as_bytes()).unwrap();
                 }
                 TokenType::END(cur_block, pos) => {
                     let s: String;
@@ -367,17 +396,17 @@ pub mod compiler {
                             } else {
                                 s = format!("@end_if_{}\n", pos);
                             }
-                            self.file.write(s.as_bytes()).unwrap();
+                            self.output_file.write(s.as_bytes()).unwrap();
                         }
                         EndBlock::Loop => {
                             s = format!("\t%c_{}_{} =d sub %c_{}_{}, 1\n", pos, pos, pos, pos,);
-                            self.file.write(s.as_bytes()).unwrap();
-                            self.file.write(cond_str.as_bytes()).unwrap();
+                            self.output_file.write(s.as_bytes()).unwrap();
+                            self.output_file.write(cond_str.as_bytes()).unwrap();
                             let s = format!(
                                 "\tjnz %b, @loop_{}, @end_loop_{}\n@end_loop_{}\n",
                                 pos, pos, pos
                             );
-                            self.file.write(s.as_bytes()).unwrap();
+                            self.output_file.write(s.as_bytes()).unwrap();
                         }
                     }
                 }
@@ -428,28 +457,30 @@ pub mod compiler {
         }
 
         pub fn compile(&mut self) -> Result<u32, String> {
-            self.file
+            self.output_file
                 .write(b"export function w $main() {\n@start\n")
                 .unwrap();
 
             self.cur_word = "main".to_string();
             let res = self.parse_function_body(TokenType::EOF);
 
-            self.file.write(b"@end\n\tret 0\n}\n").unwrap();
-            self.file
+            self.output_file.write(b"@end\n\tret 0\n}\n").unwrap();
+            self.output_file
                 .write(b"data $fmt_int = { b \"%.f \", b 0 }\n")
                 .unwrap();
-            self.file
+            self.output_file
                 .write(b"data $fmt_dec = { b \"%.10g \", b 0 }\n")
                 .unwrap();
-            self.file
+            self.output_file
                 .write(b"data $fmt_str = { b \"%s \", b 0 }\n")
                 .unwrap();
 
-            self.file
+            self.output_file
                 .write(b"data $dbg = { b \"Debug: \", b 0 }\n")
                 .unwrap();
-            self.file.write(b"data $nl = { b \"\\n\", b 0 }\n").unwrap();
+            self.output_file
+                .write(b"data $nl = { b \"\\n\", b 0 }\n")
+                .unwrap();
 
             let cmd = Command::new("sh")
         .arg("-c")

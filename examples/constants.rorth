@@ -10,7 +10,7 @@ y writeln
 
 \ since words and variables aren't defined the same in the compiler, attempting to
 \ assign a new value causes a variable not found error
-( 1 x := )
+1 x :=
 \ but they can be manipulated and assigned to a new variable as expected
 x y + z :=
 z sq writeln
