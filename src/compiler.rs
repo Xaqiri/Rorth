@@ -196,8 +196,7 @@ pub mod compiler {
             let word_name = match &cur_token.tok_type {
                 TokenType::IDENT(s) => s,
                 _ => {
-                    return self
-                        .format_err(&Token::new(), "New word error: Invalid name".to_string())
+                    return self.format_err(&cur_token, "New word error: Invalid name".to_string())
                 }
             };
             self.words.insert(word_name.clone(), vec![]);
@@ -217,12 +216,19 @@ pub mod compiler {
             let mut cur_token = self.tokens[self.pos].clone();
             while cur_token.tok_type != TokenType::SEMICOLON {
                 if let TokenType::IDENT(s) = &cur_token.tok_type {
-                    cur_token.tok_type = TokenType::IDENT(format!("{}_{}", self.cur_word, s));
+                    if !self.words.contains_key(s) {
+                        cur_token.tok_type = TokenType::IDENT(format!("{}_{}", self.cur_word, s));
+                    }
                 }
                 self.words.get_mut(word_name).unwrap().push(cur_token);
                 self.advance_token();
                 cur_token = self.tokens[self.pos].clone();
             }
+            self.words.get_mut(word_name).unwrap().push(Token {
+                row: 0,
+                col: 0,
+                tok_type: TokenType::EOF,
+            });
             Ok(0)
         }
 
@@ -260,22 +266,22 @@ pub mod compiler {
                 TokenType::GT => (self.stack, *cond_str) = self.comp_op(">"),
                 TokenType::INT(_) => self.stack = self.push_op(&tok),
                 TokenType::STR(_) => self.stack += 1,
-                TokenType::SWAP => self.swap_op(),
-                TokenType::DROP => self.stack -= 1,
-                TokenType::NIP => {
-                    self.swap_op();
-                    self.stack -= 1;
-                }
-                TokenType::ROT => self.rot_op(),
                 TokenType::DBG => self.dbg_op(),
-                TokenType::OVER => match self.over_op() {
-                    Ok(s) => self.stack = s,
-                    Err(e) => return Err(e),
-                },
-                TokenType::DUP => match self.dup_op(&tok) {
-                    Ok(s) => self.stack = s,
-                    Err(e) => return Err(e),
-                },
+                // TokenType::SWAP => self.swap_op(),
+                // TokenType::DROP => self.stack -= 1,
+                // TokenType::NIP => {
+                //     self.swap_op();
+                //     self.stack -= 1;
+                // }
+                // TokenType::ROT => self.rot_op(),
+                // TokenType::OVER => match self.over_op() {
+                //     Ok(s) => self.stack = s,
+                //     Err(e) => return Err(e),
+                // },
+                // TokenType::DUP => match self.dup_op(&tok) {
+                //     Ok(s) => self.stack = s,
+                //     Err(e) => return Err(e),
+                // },
                 TokenType::PRINT => {
                     if tok.tok_type == TokenType::PRINT {
                         let s = format!("\tcall $printf(l $nl)\n");
