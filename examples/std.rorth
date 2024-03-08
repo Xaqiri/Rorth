@@ -1,0 +1,7 @@
+: drop ( a -- ) a := ;
+: peek ( a -- a ) a := a . a ;
+: dup ( a -- a a ) a := a a ;
+: swap ( a b -- b a ) b := a := b a ;
+: over ( a b -- a b a ) swap dup rot swap ;
+: nip ( a b -- b ) swap drop ;
+: rot ( a b c -- b c a ) dup x := drop swap x swap ;

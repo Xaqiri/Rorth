@@ -1,11 +1,11 @@
-( comment )
-: loop 0 > while over . swap 1 - swap end ;
+: over ( a b -- a b a ) b := a := a b a ;
+: swap ( a b -- b a ) b := a := b a ;
+: dup ( a -- a a ) a := a a ;
+: inc 1 over 1 + < while over . swap 1 + swap end ;
+: dec 0 > while over . swap 1 - swap end ;
 : fib over over + ;
 : word 6 x := x dup ;
 
-1 x :=
-2 y :=
-
-x y + 4 * z := x y z dbg
-
-word 3 * swap drop x := x dbg
+10 inc
+print
+10 dec

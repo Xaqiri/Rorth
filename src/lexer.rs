@@ -88,13 +88,6 @@ pub mod lexer {
             tokens: vec![],
         };
         l.char = l.source[l.pos];
-        l.ident.insert("swap".to_string(), TokenType::SWAP);
-        l.ident.insert("over".to_string(), TokenType::OVER);
-        l.ident.insert("peek".to_string(), TokenType::PEEK);
-        l.ident.insert("drop".to_string(), TokenType::DROP);
-        l.ident.insert("nip".to_string(), TokenType::NIP);
-        l.ident.insert("rot".to_string(), TokenType::ROT);
-        l.ident.insert("dup".to_string(), TokenType::DUP);
         l.ident.insert("dbg".to_string(), TokenType::DBG);
         l.ident.insert("print".to_string(), TokenType::PRINT);
         l.ident.insert("set".to_string(), TokenType::SET);

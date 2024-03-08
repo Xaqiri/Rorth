@@ -1,5 +1,6 @@
 use std::{env, fs};
 
+// TODO: Come up with syntax for and implement importing words from other files
 // TODO: Loops inside words are broken; the code generation doesn't differentiate different loops:
 // : loop 0 > while over . swap 1 - swap end ;
 // 10 loop --> works as expected
