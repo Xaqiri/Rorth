@@ -246,6 +246,8 @@ pub mod parser {
                     TokenType::DBG => Ok(self.stack),
                     TokenType::PRINT => Ok(self.stack),
                     TokenType::CHAR => Ok(self.stack),
+                    TokenType::INT(_) => Ok(self.stack + 1),
+                    TokenType::STR(_) => Ok(self.stack + 1),
                     TokenType::IF(_) => match self.parse_if_block(tok, 1, -1) {
                         Ok(t) => {
                             self.tokens[self.pos] = t;
@@ -267,7 +269,6 @@ pub mod parser {
                         }
                         Err(e) => Err(e),
                     },
-                    TokenType::INT(_) => Ok(self.stack + 1),
                     TokenType::WHILE(_, _) => match self.parse_while_block(tok, 1, 0) {
                         Ok(t) => {
                             self.tokens[self.pos] = t;

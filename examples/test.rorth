@@ -5,6 +5,5 @@
 : fib over over + ;
 : word 6 x := x dup ;
 : thing 1 1 = if 42 . else 0 . end ;
-: helloWorld 104 char 101 char 108 char 108 char 111 char ;
+: hello "hello" ;
 
-helloWorld

@@ -140,7 +140,20 @@ pub mod lexer {
             }
         }
 
-        pub fn get_ident(&mut self) {
+        fn parse_string(&mut self) {
+            self.advance_token();
+            let mut ident = vec![];
+            ident.push(self.char);
+            while self.peek < self.source.len() && self.source[self.peek] != '\"' {
+                ident.push(self.source[self.peek]);
+                self.advance_token();
+            }
+            let s: String = ident.into_iter().collect();
+            self.tokens.push(self.make_token(TokenType::STR(s)));
+            self.advance_token();
+        }
+
+        pub fn parse_ident(&mut self) {
             let mut ident = vec![];
             ident.push(self.char);
             while self.peek < self.source.len() && self.source[self.peek].is_alphabetic() {
@@ -191,7 +204,7 @@ pub mod lexer {
             }
         }
 
-        pub fn get_number(&mut self) {
+        pub fn parse_number(&mut self) {
             let mut num = vec![];
             num.push(self.char);
             while self.peek < self.source.len() && self.source[self.peek].is_digit(10) {
@@ -291,6 +304,7 @@ pub mod lexer {
                     '>' => self.tokens.push(self.make_token(TokenType::GT)),
                     '?' => self.tokens.push(self.make_token(TokenType::QMARK)),
                     ';' => self.tokens.push(self.make_token(TokenType::SEMICOLON)),
+                    '\"' => self.parse_string(),
                     '(' | '\\' => self.parse_comment(),
                     ')' => self.tokens.push(self.make_token(TokenType::RPAREN)),
                     '-' => {
@@ -316,9 +330,9 @@ pub mod lexer {
                     '\0' => self.tokens.push(self.make_token(TokenType::EOF)),
                     _ => {
                         if self.char.is_digit(10) {
-                            self.get_number();
+                            self.parse_number();
                         } else if self.char.is_alphabetic() {
-                            self.get_ident();
+                            self.parse_ident();
                         } else {
                             return Err(format!(
                                 "{}:{}:{}: Error lexing character: {}",
