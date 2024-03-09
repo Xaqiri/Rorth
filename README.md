@@ -45,3 +45,9 @@ end x ;
 5 fact . \ 120
 ```
 
+### Importing 
+```forth
+-- std ;
+
+1 2 over . \ over is defined in std.rorth
+```

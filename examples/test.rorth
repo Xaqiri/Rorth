@@ -1,11 +1,11 @@
-: over ( a b -- a b a ) b := a := a b a ;
-: swap ( a b -- b a ) b := a := b a ;
-: dup ( a -- a a ) a := a a ;
-: inc 1 over 1 + < while over . swap 1 + swap end ;
-: dec 0 > while over . swap 1 - swap end ;
+-- std ;
+
+: inc 1 over 1 + < while over . swap 1 + swap end drop drop drop ;
+: dec 0 > while over . swap 1 - swap end drop drop ;
 : fib over over + ;
 : word 6 x := x dup ;
 
 10 inc
 print
 10 dec
+

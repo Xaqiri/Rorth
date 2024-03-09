@@ -1,3 +1,5 @@
+-- std ;
+
 \ calculates the factorial of a number a
 : fact ( a -- a! )
 	1 x :=

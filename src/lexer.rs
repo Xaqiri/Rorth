@@ -1,5 +1,6 @@
 pub mod lexer {
-    use std::collections::HashMap;
+    use crate::parser::parser;
+    use std::{collections::HashMap, fs};
 
     #[derive(Debug, PartialEq, Eq, Clone)]
     pub enum EndBlock {
@@ -26,13 +27,7 @@ pub mod lexer {
         LT,
         GTE,
         GT,
-        SWAP,
-        OVER,
         PEEK,
-        DROP,
-        DUP,
-        NIP,
-        ROT,
         DBG,
         PRINT,
         QMARK,
@@ -153,13 +148,7 @@ pub mod lexer {
             let s = ident.into_iter().collect();
             if let Some(t) = self.ident.get(&s) {
                 match t {
-                    TokenType::SWAP => self.tokens.push(self.make_token(TokenType::SWAP)),
-                    TokenType::OVER => self.tokens.push(self.make_token(TokenType::OVER)),
                     TokenType::PEEK => self.tokens.push(self.make_token(TokenType::PEEK)),
-                    TokenType::DROP => self.tokens.push(self.make_token(TokenType::DROP)),
-                    TokenType::DUP => self.tokens.push(self.make_token(TokenType::DUP)),
-                    TokenType::NIP => self.tokens.push(self.make_token(TokenType::NIP)),
-                    TokenType::ROT => self.tokens.push(self.make_token(TokenType::ROT)),
                     TokenType::DBG => self.tokens.push(self.make_token(TokenType::DBG)),
                     TokenType::PRINT => self.tokens.push(self.make_token(TokenType::PRINT)),
                     TokenType::IF(_) => self.tokens.push(self.make_token(TokenType::IF(0))),
@@ -238,6 +227,53 @@ pub mod lexer {
             }
         }
 
+        fn parse_imports(&mut self) {
+            let mut imports: Vec<String> = vec![];
+            self.advance_token();
+            self.advance_token();
+            while self.char != ';' {
+                self.skip_space();
+                if !self.char.is_alphabetic() {
+                    panic!(
+                        "{}",
+                        format!(
+                            "{}:{}:{}: Invalid: {}",
+                            self.source_file, self.row, self.col, self.char
+                        )
+                    );
+                }
+                let mut s: Vec<char> = vec![];
+                while self.char.is_alphabetic() {
+                    s.push(self.char);
+                    self.advance_token();
+                }
+                imports.push(s.into_iter().collect());
+                self.advance_token();
+                self.skip_space();
+            }
+            for i in imports {
+                let source_file = format!("../std/{}.rorth", i);
+                let program = fs::read_to_string(source_file.to_owned());
+                if let Err(_) = program {
+                    panic!("{}", format!("Invalid import: {}", i));
+                }
+
+                let mut l = new(source_file.to_string(), program.unwrap());
+                if let Err(e) = l.lex() {
+                    panic!("{}", e);
+                }
+                let mut p = parser::new(source_file.to_string(), l.tokens);
+                if let Err(e) = p.parse() {
+                    panic!("{}", e);
+                }
+                for t in p.tokens {
+                    if t.tok_type != TokenType::EOF {
+                        self.tokens.push(t);
+                    }
+                }
+            }
+        }
+
         pub fn lex(&mut self) -> Result<Vec<Token>, String> {
             while self.pos <= self.source.len() {
                 self.skip_space();
@@ -256,8 +292,12 @@ pub mod lexer {
                     ')' => self.tokens.push(self.make_token(TokenType::RPAREN)),
                     '-' => {
                         if self.peek() == '-' {
-                            self.tokens.push(self.make_token(TokenType::EM));
-                            self.advance_token();
+                            if self.pos == 0 {
+                                self.parse_imports();
+                            } else {
+                                self.tokens.push(self.make_token(TokenType::EM));
+                                self.advance_token();
+                            }
                         } else {
                             self.tokens.push(self.make_token(TokenType::MINUS))
                         }

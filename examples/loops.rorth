@@ -1,3 +1,5 @@
+-- std ;
+
 : dec ( a -- )
 1 > while
   over . 

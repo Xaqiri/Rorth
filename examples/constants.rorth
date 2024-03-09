@@ -1,3 +1,5 @@
+-- std ;
+
 : writeln ( a -- ) . print ;
 : sq ( a -- a*a ) dup * ;
 
