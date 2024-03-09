@@ -30,6 +30,7 @@ pub mod lexer {
         PEEK,
         DBG,
         PRINT,
+        CHAR,
         QMARK,
         COLON,
         SEMICOLON,
@@ -85,6 +86,7 @@ pub mod lexer {
         l.char = l.source[l.pos];
         l.ident.insert("dbg".to_string(), TokenType::DBG);
         l.ident.insert("print".to_string(), TokenType::PRINT);
+        l.ident.insert("char".to_string(), TokenType::CHAR);
         l.ident.insert("set".to_string(), TokenType::SET);
         l.ident.insert("if".to_string(), TokenType::IF(0));
         l.ident.insert("else".to_string(), TokenType::ELSE(0));
@@ -151,6 +153,7 @@ pub mod lexer {
                     TokenType::PEEK => self.tokens.push(self.make_token(TokenType::PEEK)),
                     TokenType::DBG => self.tokens.push(self.make_token(TokenType::DBG)),
                     TokenType::PRINT => self.tokens.push(self.make_token(TokenType::PRINT)),
+                    TokenType::CHAR => self.tokens.push(self.make_token(TokenType::CHAR)),
                     TokenType::IF(_) => self.tokens.push(self.make_token(TokenType::IF(0))),
                     TokenType::ELSE(_) => self.tokens.push(self.make_token(TokenType::ELSE(0))),
                     TokenType::WHILE(_, _) => self

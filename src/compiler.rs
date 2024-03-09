@@ -136,10 +136,23 @@ pub mod compiler {
             if self.stack == 0 {
                 return self.format_err(&tok, "Nothing on the stack to print".to_string());
             }
-            let s = format!(
-                "\tcall $printf(l $fmt_dec, ..., d %s_main_{})\n",
-                self.stack
-            );
+            let s: String = match &tok.tok_type {
+                TokenType::PERIOD => format!(
+                    "\tcall $printf(l $fmt_dec, ..., d %s_main_{})\n",
+                    self.stack
+                ),
+                TokenType::CHAR => format!(
+                    "\t%s_main_{}_w =w dtosi %s_main_{}\n\tcall $printf(l $fmt_char, ..., w %s_main_{}_w)\n",
+                    self.stack, self.stack, self.stack
+                ),
+                _ => {
+                    return self.format_err(tok, format!("Invalid target: {:?} not printable", tok))
+                }
+            };
+            // let s = format!(
+            //     "\tcall $printf(l $fmt_dec, ..., d %s_main_{})\n",
+            //     self.stack
+            // );
             self.output_file.write(s.as_bytes()).unwrap();
             Ok(self.stack - 1)
         }
@@ -368,6 +381,10 @@ pub mod compiler {
                         self.output_file.write(s.as_bytes()).unwrap();
                     }
                 }
+                TokenType::CHAR => match self.print_op(&tok) {
+                    Ok(s) => self.stack = s,
+                    Err(e) => return Err(e),
+                },
                 TokenType::PERIOD => match self.print_op(&tok) {
                     Ok(s) => self.stack = s,
                     Err(e) => return Err(e),
@@ -482,6 +499,9 @@ pub mod compiler {
                 .unwrap();
             self.output_file
                 .write(b"data $fmt_str = { b \"%s \", b 0 }\n")
+                .unwrap();
+            self.output_file
+                .write(b"data $fmt_char = { b \"%c\", b 0 }\n")
                 .unwrap();
 
             self.output_file

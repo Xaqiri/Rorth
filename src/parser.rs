@@ -245,6 +245,7 @@ pub mod parser {
                     TokenType::SET => self.parse_set(),
                     TokenType::DBG => Ok(self.stack),
                     TokenType::PRINT => Ok(self.stack),
+                    TokenType::CHAR => Ok(self.stack),
                     TokenType::IF(_) => match self.parse_if_block(tok, 1, -1) {
                         Ok(t) => {
                             self.tokens[self.pos] = t;
