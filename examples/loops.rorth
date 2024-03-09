@@ -11,12 +11,9 @@ end .
 1 over < while 
   over . 
   swap 1 + swap
-end .
+end . drop drop
 ;
 
-10 dec
-print
 10 inc
 print
 10 inc
-

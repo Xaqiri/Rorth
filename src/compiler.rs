@@ -32,6 +32,11 @@ pub mod compiler {
         // : word 1 x := ; => x becomes %s_word_x
         // 1 x := => x becomes %s_x
         cur_word: String,
+        if_stack: i32,
+        else_stack: i32,
+        if_end_stack: i32,
+        loop_stack: i32,
+        loop_end_stack: i32,
     }
 
     pub fn new(source: String, tokens: Vec<Token>) -> Compiler {
@@ -47,6 +52,11 @@ pub mod compiler {
             var_stack: vec![],
             vars: HashSet::new(),
             cur_word: "main".to_string(),
+            if_stack: 0,
+            else_stack: 0,
+            if_end_stack: 0,
+            loop_stack: 0,
+            loop_end_stack: 0,
         }
     }
 
@@ -244,9 +254,12 @@ pub mod compiler {
                 pos + 1
             );
             self.output_file.write(s.as_bytes()).unwrap();
+            self.loop_stack += 1;
+            self.loop_end_stack = self.loop_stack;
+
             let s = format!(
-                "\tjnz %b, @loop_{}, @end_loop_{}\n@loop_{}\n",
-                pos, pos, pos
+                "\tjnz %b, @loop_{}_{}, @end_loop_{}_{}\n@loop_{}_{}\n",
+                pos, self.loop_end_stack, pos, self.loop_end_stack, pos, self.loop_end_stack
             );
             self.output_file.write(s.as_bytes()).unwrap();
             Ok(0)
@@ -262,20 +275,33 @@ pub mod compiler {
             match cur_block {
                 EndBlock::Cond => {
                     if pos == 0 {
-                        s = format!("@else_{}\n@end_if_{}\n", pos, pos);
+                        s = format!(
+                            "@else_{}_{}\n@end_if_{}_{}\n",
+                            pos, self.if_end_stack, pos, self.if_end_stack
+                        );
                     } else {
-                        s = format!("@end_if_{}\n", pos);
+                        s = format!("@end_if_{}_{}\n", pos, self.if_end_stack);
                     }
                     self.output_file.write(s.as_bytes()).unwrap();
+                    self.if_end_stack -= 1;
+                    if self.else_stack > 0 {
+                        self.else_stack -= 1;
+                    }
                 }
                 EndBlock::Loop => {
                     s = format!("\t%c_{}_{} =d sub %c_{}_{}, 1\n", pos, pos, pos, pos,);
                     self.output_file.write(s.as_bytes()).unwrap();
                     self.output_file.write(cond_str.as_bytes()).unwrap();
                     let s = format!(
-                        "\tjnz %b, @loop_{}, @end_loop_{}\n@end_loop_{}\n",
-                        pos, pos, pos
+                        "\tjnz %b, @loop_{}_{}, @end_loop_{}_{}\n@end_loop_{}_{}\n",
+                        pos,
+                        self.loop_end_stack,
+                        pos,
+                        self.loop_end_stack,
+                        pos,
+                        self.loop_end_stack
                     );
+                    self.loop_end_stack -= 1;
                     self.output_file.write(s.as_bytes()).unwrap();
                 }
             }
@@ -362,14 +388,26 @@ pub mod compiler {
                     }
                 }
                 TokenType::IF(pos) => {
+                    self.if_stack += 1;
+                    self.if_end_stack = self.if_stack;
                     let s = format!(
-                        "\t%b =w dtosi %s_main_{}\n\tjnz %b, @if_{}, @else_{}\n@if_{}\n",
-                        self.stack, pos, pos, pos
+                        "\t%b =w dtosi %s_main_{}\n\tjnz %b, @if_{}_{}, @else_{}_{}\n@if_{}_{}\n",
+                        self.stack,
+                        pos,
+                        self.if_end_stack,
+                        pos,
+                        self.if_end_stack,
+                        pos,
+                        self.if_end_stack
                     );
                     self.output_file.write(s.as_bytes()).unwrap();
                 }
                 TokenType::ELSE(pos) => {
-                    let s = format!("\tjmp @end_if_{}\n@else_{}\n", pos, pos);
+                    self.else_stack = self.if_end_stack;
+                    let s = format!(
+                        "\tjmp @end_if_{}_{}\n@else_{}_{}\n",
+                        pos, self.else_stack, pos, self.else_stack
+                    );
                     self.output_file.write(s.as_bytes()).unwrap();
                 }
                 TokenType::WHILE(op, pos) => match self.handle_while(op.to_owned(), *pos, tok) {
