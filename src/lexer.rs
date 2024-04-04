@@ -27,6 +27,10 @@ pub mod lexer {
         LT,
         GTE,
         GT,
+        DUP,
+        SWAP,
+        NIP,
+        ROT,
         PEEK,
         DBG,
         PRINT,
@@ -84,6 +88,10 @@ pub mod lexer {
             tokens: vec![],
         };
         l.char = l.source[l.pos];
+        l.ident.insert("dup".to_string(), TokenType::DUP);
+        l.ident.insert("swap".to_string(), TokenType::SWAP);
+        l.ident.insert("nip".to_string(), TokenType::NIP);
+        l.ident.insert("rot".to_string(), TokenType::ROT);
         l.ident.insert("dbg".to_string(), TokenType::DBG);
         l.ident.insert("print".to_string(), TokenType::PRINT);
         l.ident.insert("char".to_string(), TokenType::CHAR);
@@ -164,6 +172,10 @@ pub mod lexer {
             if let Some(t) = self.ident.get(&s) {
                 match t {
                     TokenType::PEEK => self.tokens.push(self.make_token(TokenType::PEEK)),
+                    TokenType::DUP => self.tokens.push(self.make_token(TokenType::DUP)),
+                    TokenType::SWAP => self.tokens.push(self.make_token(TokenType::SWAP)),
+                    TokenType::NIP => self.tokens.push(self.make_token(TokenType::NIP)),
+                    TokenType::ROT => self.tokens.push(self.make_token(TokenType::ROT)),
                     TokenType::DBG => self.tokens.push(self.make_token(TokenType::DBG)),
                     TokenType::PRINT => self.tokens.push(self.make_token(TokenType::PRINT)),
                     TokenType::CHAR => self.tokens.push(self.make_token(TokenType::CHAR)),

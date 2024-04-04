@@ -7,6 +7,6 @@
 \ : thing 1 1 = if 42 . else 0 . end ;
 \ : hello "hello" . ;
 
-\ 4 word . word word + dbg
+\ 4 word . word word + dbg 
 
-1 1 + .
+4 2 + 4 * 8 / dup 3 * 6 dbg swap dbg rot dbg
