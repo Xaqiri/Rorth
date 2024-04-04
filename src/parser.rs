@@ -21,7 +21,7 @@ pub mod parser {
     }
 
     pub fn new(source: String, tokens: Vec<Token>) -> Parser {
-        let p = Parser {
+        Parser {
             pos: 0,
             peek: 1,
             source_file: source,
@@ -36,8 +36,7 @@ pub mod parser {
             cur_block: EndBlock::Cond,
             parse_inside: true,
             tokens,
-        };
-        p
+        }
     }
 
     impl Parser {

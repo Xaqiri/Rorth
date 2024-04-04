@@ -1,9 +1,12 @@
--- std ;
+\ -- std ;
 
-: inc 1 over 1 + < while over . swap 1 + swap end drop drop drop ;
-: dec 0 > while over . swap 1 - swap end drop drop print ;
-: fib over over + ;
-: word 6 x := x dup ;
-: thing 1 1 = if 42 . else 0 . end ;
-: hello "hello" ;
+\ : inc 1 over 1 + < while over . swap 1 + swap end drop drop drop ;
+\ : dec 0 > while over . swap 1 - swap end drop print ;
+\ : fib over over + ;
+\ : word x := x dup ;
+\ : thing 1 1 = if 42 . else 0 . end ;
+\ : hello "hello" . ;
 
+\ 4 word . word word + dbg
+
+1 1 + .
