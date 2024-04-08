@@ -175,7 +175,7 @@ pub mod qbe_backend {
                     "\t%s_main_{}_w =w dtosi %s_main_{}\n\tcall $printf(l $fmt_char, ..., w %s_main_{}_w)\n",
                     self.stack, self.stack, self.stack
                 ),
-                TokenType::PRINT => format!("\tcall $printf(l $nl)\n"),
+                // TokenType::PERIOD => format!("\tcall $printf(l $nl)\n"),
                 _ => {
                     return self.format_err(tok, format!("Invalid target: {:?} not printable", tok))
                 }
@@ -422,10 +422,6 @@ pub mod qbe_backend {
                 }
                 TokenType::DBG => self.dbg_op(),
                 TokenType::SEMICOLON => self.stack = 0,
-                TokenType::PRINT => match self.print_op(&tok) {
-                    Ok(s) => self.stack = s,
-                    Err(e) => return Err(e),
-                },
                 TokenType::CHAR => match self.print_op(&tok) {
                     Ok(s) => self.stack = s,
                     Err(e) => return Err(e),

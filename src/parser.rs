@@ -56,7 +56,7 @@ pub mod parser {
                 if self.stack < req {
                     return Err(format!(
                         "{}:{}:{}: Invalid {:?}: Not enough values on the stack",
-                        self.source_file, tok.col, tok.row, tok.tok_type
+                        self.source_file, tok.row, tok.col, tok.tok_type
                     ));
                 }
                 return Ok(self.stack + change);
@@ -240,6 +240,7 @@ pub mod parser {
                     TokenType::GTE => self.stack_overflow(tok, 2, 1),
                     TokenType::GT => self.stack_overflow(tok, 2, 1),
                     TokenType::PERIOD => self.stack_overflow(tok, 1, -1),
+                    TokenType::PRINT => self.stack_overflow(tok, 1, -1),
                     TokenType::COMMA => self.stack_overflow(tok, 1, 0),
                     TokenType::DUP => self.stack_overflow(tok, 1, 1),
                     TokenType::SWAP => self.stack_overflow(tok, 2, 0),
@@ -247,7 +248,6 @@ pub mod parser {
                     TokenType::ROT => self.stack_overflow(tok, 3, 0),
                     TokenType::SET => self.parse_set(),
                     TokenType::DBG => Ok(self.stack),
-                    TokenType::PRINT => Ok(self.stack),
                     TokenType::CHAR => Ok(self.stack),
                     TokenType::INT(_) => Ok(self.stack + 1),
                     TokenType::STR(_) => Ok(self.stack + 1),

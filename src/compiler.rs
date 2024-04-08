@@ -5,7 +5,7 @@ pub mod compiler {
     };
 
     pub struct Compiler {
-        source_file: String,
+        _source_file: String,
         tokens: Vec<Token>,
         pub bytes: Vec<Op>,
         pub const_pool: Vec<i64>,
@@ -14,19 +14,24 @@ pub mod compiler {
     impl Compiler {
         pub fn compile(&mut self) -> Result<i32, String> {
             for i in &self.tokens {
-                match i.tok_type {
+                match &i.tok_type {
                     TokenType::EOF => self.bytes.push(Op::HALT),
                     TokenType::INT(n) => {
-                        self.const_pool.push(n as i64);
-                        self.bytes.push(Op::PUSH(self.const_pool.len() - 1));
+                        self.const_pool.push(*n as i64);
+                        self.bytes.push(Op::PUSHNUM(self.const_pool.len() - 1));
                     }
-                    TokenType::STR(_) => todo!("{:?}", i),
+                    TokenType::STR(s) => {
+                        self.bytes.push(Op::PUSHSTR(self.const_pool.len()));
+                        for c in s.chars() {
+                            self.const_pool.push(c as i64);
+                        }
+                        self.const_pool.push(0);
+                    }
                     TokenType::IDENT(_) => todo!("{:?}", i),
                     TokenType::PLUS => self.bytes.push(Op::ADD),
-                    TokenType::MINUS => todo!("{:?}", i),
+                    TokenType::MINUS => self.bytes.push(Op::SUB),
                     TokenType::ASTERISK => self.bytes.push(Op::MUL),
                     TokenType::SLASH => self.bytes.push(Op::DIV),
-                    TokenType::PERIOD => self.bytes.push(Op::PRINT),
                     TokenType::COMMA => todo!("{:?}", i),
                     TokenType::SET => todo!("{:?}", i),
                     TokenType::EQUAL => todo!("{:?}", i),
@@ -41,7 +46,8 @@ pub mod compiler {
                     TokenType::ROT => self.bytes.push(Op::ROT),
                     TokenType::PEEK => todo!("{:?}", i),
                     TokenType::DBG => self.bytes.push(Op::DBG),
-                    TokenType::PRINT => todo!("{:?}", i),
+                    TokenType::PERIOD => self.bytes.push(Op::PRINTI),
+                    TokenType::PRINT => self.bytes.push(Op::PRINTS),
                     TokenType::CHAR => todo!("{:?}", i),
                     TokenType::QMARK => todo!("{:?}", i),
                     TokenType::COLON => todo!("{:?}", i),
@@ -64,9 +70,9 @@ pub mod compiler {
         }
     }
 
-    pub fn new(source_file: String, tokens: Vec<Token>) -> Compiler {
+    pub fn new(_source_file: String, tokens: Vec<Token>) -> Compiler {
         Compiler {
-            source_file,
+            _source_file,
             tokens,
             bytes: vec![],
             const_pool: vec![],
