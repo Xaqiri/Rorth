@@ -1,18 +1,16 @@
 -- std ;
 
-: writeln ( a -- ) . print ;
 : sq ( a -- a*a ) dup * ;
 
 \ word syntax can be used to define constants 
 : x 10 ;
 : y 5 ;
 
-x sq writeln 
-y writeln
+x sq .
 
 \ since words and variables aren't defined the same in the compiler, attempting to
-\ assign a new value causes a variable not found error
-1 x :=
+\ assign a new value causes an error
+\ 1 x :=
 \ but they can be manipulated and assigned to a new variable as expected
 x y + z :=
-z sq writeln
+z sq .

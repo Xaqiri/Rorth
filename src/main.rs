@@ -1,6 +1,7 @@
 use std::{env, fs};
 
-use rorth::{compiler::compiler, lexer::lexer, parser::parser, vm::vm};
+use rorth::{lexer::lexer, parser::parser, qbe_backend};
+// use rorth::{compiler::compiler, vm::vm}
 
 // TODO: Fix using variables in loop conditional
 // TODO: Write interpreter
@@ -26,15 +27,19 @@ fn main() -> Result<(), String> {
         if let Err(e) = p.parse() {
             return Err(e);
         }
-        let mut c = compiler::new(source_file.to_string(), p.tokens);
+        let mut c = qbe_backend::qbe_backend::new(source_file.to_string(), p.tokens);
         if let Err(e) = c.compile() {
             return Err(e);
         }
-
-        let mut vm = vm::new(c.bytes, c.const_pool);
-        if let Err(e) = vm.interpret() {
-            return Err(e);
-        }
+        // let mut c = compiler::new(source_file.to_string(), p.tokens);
+        // if let Err(e) = c.compile() {
+        //     return Err(e);
+        // }
+        //
+        // let mut vm = vm::new(c.bytes, c.const_pool);
+        // if let Err(e) = vm.interpret() {
+        //     return Err(e);
+        // }
     } else if let Some("rvm") = file_type {
         return Err("Bytecode interpreter not yet implemented".to_string());
     } else {

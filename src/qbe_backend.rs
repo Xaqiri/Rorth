@@ -23,9 +23,9 @@ pub mod qbe_backend {
         stack: StackPointer,
         pos: usize,
         peek: usize,
-        strings: HashSet<String>,
+        pub strings: HashMap<String, String>,
         // HashMap to keep track of strings on the stack
-        string_stack: HashMap<StackPointer, String>,
+        pub string_stack: HashMap<StackPointer, String>,
         // HashMap in the form "word name": [list of operations associated with the word]
         words: HashMap<String, Vec<Token>>,
         var_stack: Vec<String>,
@@ -44,7 +44,7 @@ pub mod qbe_backend {
     }
 
     pub fn new(source: String, tokens: Vec<Token>) -> Compiler {
-        let file = File::create("../out/rorth.ssa").unwrap();
+        let file = File::create("./out/rorth.ssa").unwrap();
         Compiler {
             source,
             tokens,
@@ -52,7 +52,7 @@ pub mod qbe_backend {
             stack: 0,
             pos: 0,
             peek: 1,
-            strings: HashSet::new(),
+            strings: HashMap::new(),
             string_stack: HashMap::new(),
             words: HashMap::new(),
             var_stack: vec![],
@@ -69,8 +69,8 @@ pub mod qbe_backend {
     impl Compiler {
         fn format_err(&self, tok: &Token, message: String) -> Result<i32, String> {
             Err(format!(
-                "{}:{}:{}: {}",
-                self.source, tok.row, tok.col, message
+                "{}:{}:{}: {} {:?}",
+                self.source, tok.row, tok.col, message, tok.tok_type
             ))
         }
 
@@ -175,7 +175,6 @@ pub mod qbe_backend {
                     "\t%s_main_{}_w =w dtosi %s_main_{}\n\tcall $printf(l $fmt_char, ..., w %s_main_{}_w)\n",
                     self.stack, self.stack, self.stack
                 ),
-                // TokenType::PERIOD => format!("\tcall $printf(l $nl)\n"),
                 _ => {
                     return self.format_err(tok, format!("Invalid target: {:?} not printable", tok))
                 }
@@ -416,9 +415,10 @@ pub mod qbe_backend {
                 TokenType::GT => (self.stack, *cond_str) = self.comp_op(">"),
                 TokenType::INT(_) => self.stack = self.push_op(&tok),
                 TokenType::STR(s) => {
+                    let var = Self::create_string_var(s.to_string());
                     self.stack += 1;
-                    self.strings.insert(s.to_string());
-                    self.string_stack.insert(self.stack, s.to_string());
+                    self.strings.insert(var.clone(), s.to_string());
+                    self.string_stack.insert(self.stack, var);
                 }
                 TokenType::DBG => self.dbg_op(),
                 TokenType::SEMICOLON => self.stack = 0,
@@ -434,7 +434,7 @@ pub mod qbe_backend {
                     Ok(s) => self.stack = s + 1,
                     Err(e) => return Err(e),
                 },
-                TokenType::SET => {
+               TokenType::SET => {
                     let var = self.var_stack.last();
                     if let Some(v) = var {
                         self.stack = match self.set_op(v.clone(), tok) {
@@ -527,6 +527,15 @@ pub mod qbe_backend {
             Ok(0)
         }
 
+        fn create_string_var(k: String) -> String {
+            let s = k.split(",");
+            let mut var = "".to_string();
+            for i in s {
+                var.push_str(i.trim());
+                var.push_str("_");
+            }
+            var
+        }
         pub fn compile(&mut self) -> Result<i32, String> {
             self.output_file
                 .write(b"export function w $main() {\n@start\n")
@@ -555,11 +564,11 @@ pub mod qbe_backend {
             self.output_file
                 .write(b"data $nl = { b \"\\n\", b 0 }\n")
                 .unwrap();
-            for k in &self.strings {
+            for k in self.strings.keys() {
                 let v = format!(
                     "data ${} = {{ b \"{}\", b 0 }}\n",
-                    self.strings.get(k).unwrap().clone(),
-                    self.strings.get(k).unwrap().clone()
+                    k,
+                    self.strings[k]
                 )
                 .into_bytes();
                 self.output_file.write(&v).unwrap();
@@ -567,7 +576,7 @@ pub mod qbe_backend {
 
             let cmd = Command::new("sh")
         .arg("-c")
-        .arg("qbe -o ../out/out.s ../out/rorth.ssa && gcc -o ../out/rorth ../out/out.s && ../out/rorth")
+        .arg("qbe -o ./out/out.s ./out/rorth.ssa && gcc -o ./out/rorth ./out/out.s && ./out/rorth")
         .output()
         .expect("failed to execute command");
             let output = cmd.stdout;

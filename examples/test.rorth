@@ -8,6 +8,5 @@
 \ : hello "hello" . ;
 
 \ 4 word . word word + dbg 
-
-\ 4 2 + 4 * 8 / dup 3 * 6 swap rot . . .
-"hello, world" 34 35 + . print 
+\ 4 2 + 4 * 8 / dup 3 * 6 swap rot . .
+"hello, world" .

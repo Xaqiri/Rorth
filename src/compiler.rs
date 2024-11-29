@@ -47,7 +47,7 @@ pub mod compiler {
                     TokenType::PEEK => todo!("{:?}", i),
                     TokenType::DBG => self.bytes.push(Op::DBG),
                     TokenType::PERIOD => self.bytes.push(Op::PRINTI),
-                    TokenType::PRINT => self.bytes.push(Op::PRINTS),
+                    // TokenType::PRINT => self.bytes.push(Op::PRINTS),
                     TokenType::CHAR => todo!("{:?}", i),
                     TokenType::QMARK => todo!("{:?}", i),
                     TokenType::COLON => todo!("{:?}", i),
